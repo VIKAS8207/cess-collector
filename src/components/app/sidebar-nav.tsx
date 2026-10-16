@@ -1,0 +1,140 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Tooltip } from "@base-ui/react/tooltip";
+import { Brand } from "@/components/brand";
+import { UserMenu } from "@/components/app/user-menu";
+import { isActive, navByRole, type NavItem } from "@/components/app/nav-config";
+import { useAuth } from "@/lib/auth-store";
+import { cn } from "cn";
+
+function NavLink({
+  item,
+  collapsed,
+  nested,
+  onNavigate,
+}: {
+  item: NavItem;
+  collapsed: boolean;
+  nested?: boolean;
+  onNavigate?: () => void;
+}) {
+  const pathname = usePathname();
+  const active = isActive(pathname, item.href);
+  const Icon = item.icon;
+
+  const link = (
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex h-10 items-center gap-3 rounded-full text-[15px] outline-none transition-colors",
+        "focus-visible:ring-3 focus-visible:ring-ring/50",
+        collapsed ? "w-10 justify-center" : "w-full px-3",
+        nested && !collapsed && "pl-10",
+        active
+          ? "bg-tag text-tag-foreground"
+          : "text-foreground hover:bg-muted"
+      )}
+    >
+      <Icon aria-hidden="true" className="size-[18px] shrink-0" />
+      <span className={cn("truncate", collapsed && "sr-only")}>{item.label}</span>
+    </Link>
+  );
+
+  if (!collapsed) return link;
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger render={link} />
+      <Tooltip.Portal>
+        <Tooltip.Positioner side="right" sideOffset={10}>
+          <Tooltip.Popup className="z-50 rounded-field bg-foreground px-2.5 py-1.5 text-xs text-background shadow-panel">
+            {item.label}
+          </Tooltip.Popup>
+        </Tooltip.Positioner>
+      </Tooltip.Portal>
+    </Tooltip.Root>
+  );
+}
+
+function NavTree({
+  items,
+  collapsed,
+  nested,
+  onNavigate,
+}: {
+  items: NavItem[];
+  collapsed: boolean;
+  nested?: boolean;
+  onNavigate?: () => void;
+}) {
+  return (
+    <ul className="flex flex-col gap-1">
+      {items.map((item) => (
+        <li key={item.href} className={cn(collapsed && "flex justify-center")}>
+          <NavLink item={item} collapsed={collapsed} nested={nested} onNavigate={onNavigate} />
+          {item.children && !collapsed && (
+            <NavTree items={item.children} collapsed={false} nested onNavigate={onNavigate} />
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function SidebarContent({
+  collapsed,
+  onNavigate,
+}: {
+  collapsed: boolean;
+  onNavigate?: () => void;
+}) {
+  const { user } = useAuth();
+  const navGroups = navByRole[user?.roleId ?? "gate_operator"];
+  return (
+    <Tooltip.Provider delay={0}>
+      <div className="flex h-full flex-col">
+        <div
+          className={cn(
+            "flex h-16 shrink-0 items-center border-b border-border",
+            collapsed ? "justify-center" : "px-5"
+          )}
+        >
+          <Link
+            href="/dashboard"
+            onClick={onNavigate}
+            aria-label="SAS Collector home"
+            className="inline-flex h-10 items-center rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <Brand showName={!collapsed} />
+          </Link>
+        </div>
+        <nav
+          aria-label="Main"
+          className={cn("flex-1 overflow-y-auto py-4", collapsed ? "px-3" : "px-3")}
+        >
+          <div className="flex flex-col gap-6">
+            {navGroups.map((group) => (
+              <div key={group.label} className="flex flex-col gap-2">
+                <h2
+                  className={cn(
+                    "px-3 text-[11px] tracking-[0.4px] text-muted-foreground uppercase",
+                    collapsed && "sr-only"
+                  )}
+                >
+                  {group.label}
+                </h2>
+                <NavTree items={group.items} collapsed={collapsed} onNavigate={onNavigate} />
+              </div>
+            ))}
+          </div>
+        </nav>
+        <div className={cn("shrink-0 border-t border-border p-3")}>
+          <UserMenu variant="sidebar" collapsed={collapsed} />
+        </div>
+      </div>
+    </Tooltip.Provider>
+  );
+}
