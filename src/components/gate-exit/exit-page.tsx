@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { InfoIcon, PlusIcon, SearchIcon, TruckIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/gate/page-header";
 import { StatusPill } from "@/components/gate/status-pill";
 import { MovementDrawer } from "@/components/gate/movement-drawer";
 import { useToast } from "@/components/gate/toast";
+import { RevealPanel, useReveal } from "@/components/gate/reveal-panel";
 import { useAuth } from "@/lib/auth-store";
 import { forcedErrors, getInside, lookupClosed, submitExit, submitFlag } from "@/lib/api/gate";
 import { normalizeId } from "@/lib/domain/store";
@@ -36,6 +37,8 @@ export function ExitPage() {
   const params = useSearchParams();
   const urlQuery = params.get("q") ?? "";
   const searchRef = useRef<HTMLInputElement>(null);
+  const newButton = useRef<HTMLButtonElement>(null);
+  const reveal = useReveal("exit-search", !!urlQuery);
 
   const [query, setQuery] = useState(urlQuery);
   const [fromUrl, setFromUrl] = useState(!!urlQuery);
@@ -63,14 +66,32 @@ export function ExitPage() {
     searchRef.current?.focus();
     searchRef.current?.select();
   };
-  useHotkey("/", focusSearch);
+  useHotkey("/", () => (reveal.expanded ? focusSearch() : startNew()));
 
-  const reset = () => {
+  const clear = () => {
     setQuery("");
     setFromUrl(false);
     setPicked(null);
     setPanel(null);
+  };
+
+  /** Back to step 1 while the form stays open. */
+  const reset = () => {
+    clear();
     requestAnimationFrame(focusSearch);
+  };
+
+  /** "New gate exit": a fresh form, slid open. */
+  function startNew() {
+    clear();
+    reveal.open();
+  }
+
+  /** Done with this vehicle: slide the form away. */
+  const finish = () => {
+    clear();
+    reveal.close();
+    newButton.current?.focus();
   };
 
   const choose = (m: Movement) => {
@@ -100,10 +121,10 @@ export function ExitPage() {
     setApproving(false);
     if (done) {
       toast.push(`Exit approved for ${done.plate || done.fastag}.`);
-      reset();
+      finish();
     } else {
       toast.push("This vehicle is no longer inside.", "error");
-      reset();
+      finish();
     }
   };
 
@@ -113,7 +134,7 @@ export function ExitPage() {
     await submitFlag(panel.q, operator);
     setFlagging(false);
     toast.push(`${panel.q} flagged for a supervisor.`);
-    reset();
+    finish();
   };
 
   const tableRows = q ? matches : all;
@@ -123,9 +144,21 @@ export function ExitPage() {
       <PageHeader
         title="Gate Exit"
         description="Find the truck, check its entry, then approve the exit."
+        actions={
+          <Button
+            ref={newButton}
+            onClick={startNew}
+            aria-expanded={reveal.expanded}
+            aria-controls="exit-form-panel"
+            title="New gate exit"
+          >
+            <PlusIcon aria-hidden="true" />
+            New gate exit
+          </Button>
+        }
       />
 
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,4fr)]">
+      <RevealPanel id="exit-form-panel" mounted={reveal.mounted} expanded={reveal.expanded} title="New gate exit" onCancel={finish}>
         <Card className="gap-0 p-0 [--card-spacing:--spacing(6)]">
           <div className="flex flex-col gap-8 p-6">
             <section className="flex flex-col gap-3" aria-labelledby="x-search">
@@ -144,7 +177,6 @@ export function ExitPage() {
                   id="exit-search"
                   ref={searchRef}
                   data-page-search
-                  autoFocus
                   value={query}
                   onChange={(e) => {
                     setQuery(e.target.value.toUpperCase());
@@ -284,6 +316,7 @@ export function ExitPage() {
             )}
           </div>
         </Card>
+      </RevealPanel>
 
         <Card className="gap-4">
           <CardHeader>
@@ -295,12 +328,6 @@ export function ExitPage() {
                   : `${all.length} inside`
                 : "Longest stay first"}
             </CardDescription>
-            <CardAction>
-              <Button onClick={reset} title="New gate exit">
-                <PlusIcon aria-hidden="true" />
-                New gate exit
-              </Button>
-            </CardAction>
           </CardHeader>
           <div className="px-(--card-spacing)">
             {inside.status === "loading" && (
@@ -322,8 +349,8 @@ export function ExitPage() {
               <BlockEmpty
                 icon={TruckIcon}
                 text="No vehicles inside."
-                actionLabel="Search again"
-                onAction={reset}
+                actionLabel="New gate exit"
+                onAction={startNew}
                 className={BODY}
               />
             )}
@@ -332,7 +359,7 @@ export function ExitPage() {
                 icon={SearchIcon}
                 text="No vehicle inside matches your search."
                 actionLabel="Clear search"
-                onAction={reset}
+                onAction={clear}
                 className={BODY}
               />
             )}
@@ -392,7 +419,6 @@ export function ExitPage() {
             )}
           </div>
         </Card>
-      </div>
 
       <MovementDrawer
         id={openId}
@@ -402,6 +428,7 @@ export function ExitPage() {
           setFromUrl(true);
           setPicked(null);
           setPanel(null);
+          if (!reveal.expanded) reveal.open();
         }}
       />
     </div>

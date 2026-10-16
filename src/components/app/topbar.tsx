@@ -5,8 +5,6 @@ import { usePathname } from "next/navigation";
 import {
   BellIcon,
   MenuIcon,
-  PanelLeftCloseIcon,
-  PanelLeftOpenIcon,
   SearchIcon,
   XIcon,
 } from "lucide-react";
@@ -19,14 +17,10 @@ import { cn } from "cn";
 const UNREAD = 3;
 
 export function Topbar({
-  collapsed,
   drawerOpen,
-  onToggleCollapsed,
   onOpenDrawer,
 }: {
-  collapsed: boolean;
   drawerOpen: boolean;
-  onToggleCollapsed: () => void;
   onOpenDrawer: () => void;
 }) {
   const pathname = usePathname();
@@ -53,8 +47,6 @@ export function Topbar({
   useEffect(() => {
     if (searchOpen) mobileSearch.current?.focus();
   }, [searchOpen]);
-
-  const ToggleIcon = collapsed ? PanelLeftOpenIcon : PanelLeftCloseIcon;
 
   return (
     <header data-print-hide className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border bg-background px-3 sm:px-6">
@@ -95,17 +87,6 @@ export function Topbar({
         >
           <MenuIcon aria-hidden="true" />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="max-lg:hidden"
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          aria-expanded={!collapsed}
-          onClick={onToggleCollapsed}
-        >
-          <ToggleIcon aria-hidden="true" />
-        </Button>
-
         {page?.parent ? (
           <nav aria-label="Breadcrumb" className="min-w-0">
             <ol className="flex items-center gap-2 text-[15px]">
@@ -120,7 +101,7 @@ export function Topbar({
           </nav>
         ) : (
           <p className="truncate text-[17px] tracking-[-0.2px] text-foreground">
-            {page?.item.label ?? "SAS Collector"}
+            {page?.item.label ?? "SAAS Collector"}
           </p>
         )}
 

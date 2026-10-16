@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { PlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -106,7 +107,8 @@ export function BuyerPicker({
             {matches.length === 0 && <li className="px-3 py-3 text-sm text-muted-foreground">No buyer matches. Add a new one.</li>}
           </ul>
           <Button type="button" variant="outline" className="self-start" onClick={() => { setAdding(true); setName(q); }} disabled={disabled}>
-            + New buyer
+            <PlusIcon aria-hidden="true" />
+            New buyer
           </Button>
         </>
       )}

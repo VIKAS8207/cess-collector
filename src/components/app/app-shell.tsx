@@ -77,7 +77,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           collapsed ? "w-18" : "w-60"
         )}
       >
-        <SidebarContent collapsed={collapsed} />
+        <SidebarContent collapsed={collapsed} onToggleCollapsed={() => sidebarStore.set(collapsed ? "0" : "1")} />
       </aside>
 
       <Dialog.Root open={drawerOpen} onOpenChange={setDrawerOpen}>
@@ -109,9 +109,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       >
         <Topbar
-          collapsed={collapsed}
           drawerOpen={drawerOpen}
-          onToggleCollapsed={() => sidebarStore.set(collapsed ? "0" : "1")}
           onOpenDrawer={() => setDrawerOpen(true)}
         />
         <main id="main" tabIndex={-1} className="px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8">

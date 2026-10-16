@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { DatabaseIcon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
@@ -12,6 +13,7 @@ import { FormBanner } from "@/components/auth/form-banner";
 import { TextField } from "@/components/auth/text-field";
 import { BlockEmpty, BlockError } from "@/components/dashboard/block-states";
 import { useToast } from "@/components/gate/toast";
+import { RevealPanel, useReveal } from "@/components/gate/reveal-panel";
 import { getMasters, submitAddMaster, submitMasterActive, submitUpdateMaster } from "@/lib/api/admin";
 import { forcedErrors } from "@/lib/api/gate";
 import { itemUsage } from "@/lib/domain/admin-store";
@@ -32,6 +34,7 @@ const BODY = "h-[420px]";
 
 export function SimpleMaster({ kind, admin }: { kind: MasterKind; admin: string }) {
   const toast = useToast();
+  const reveal = useReveal(`ms-new-${kind}`);
   const [label, setLabel] = useState("");
   const [unit, setUnit] = useState<Unit>("bags");
   const [attempted, setAttempted] = useState(false);
@@ -45,7 +48,7 @@ export function SimpleMaster({ kind, admin }: { kind: MasterKind; admin: string 
   const [notice, setNotice] = useState<string | null>(null);
 
   const list = useLiveQuery(`master:${kind}`, (a) => getMasters(kind, { forceError: a === 0 && forcedErrors().has("masters") }));
-  useHotkey("/", () => document.getElementById(`ms-new-${kind}`)?.focus());
+  useHotkey("/", () => (reveal.expanded ? document.getElementById(`ms-new-${kind}`)?.focus() : reveal.open()));
   const c = copy[kind];
 
   const err = !label.trim() ? `Enter the ${c.singular} name.` : duplicate ? `This ${c.singular} already exists.` : undefined;
@@ -60,6 +63,7 @@ export function SimpleMaster({ kind, admin }: { kind: MasterKind; admin: string 
       toast.push(`${c.singular[0].toUpperCase()}${c.singular.slice(1)} added.`);
       setLabel("");
       setAttempted(false);
+      reveal.close();
     } else setDuplicate(true);
   };
 
@@ -83,8 +87,16 @@ export function SimpleMaster({ kind, admin }: { kind: MasterKind; admin: string 
   };
 
   return (
-    <Card className="gap-4">
-      <form noValidate className="flex flex-wrap items-end gap-3 px-(--card-spacing)" onSubmit={(e) => { e.preventDefault(); void add(); }}>
+    <div className="flex flex-col gap-6">
+      <div className="flex justify-end">
+        <Button onClick={reveal.open} aria-expanded={reveal.expanded} aria-controls={`ms-panel-${kind}`} title="Add (/)">
+          <PlusIcon aria-hidden="true" />
+          New {c.singular}
+        </Button>
+      </div>
+      <RevealPanel id={`ms-panel-${kind}`} mounted={reveal.mounted} expanded={reveal.expanded} title={`New ${c.singular}`} onCancel={reveal.close} wide>
+        <Card className="gap-0 p-0">
+      <form noValidate className="flex flex-wrap items-end gap-3 p-6" onSubmit={(e) => { e.preventDefault(); void add(); }}>
         <TextField
           id={`ms-new-${kind}`}
           label={`New ${c.singular}`}
@@ -101,6 +113,9 @@ export function SimpleMaster({ kind, admin }: { kind: MasterKind; admin: string 
           Add {c.singular}
         </Button>
       </form>
+        </Card>
+      </RevealPanel>
+    <Card className="gap-4">
       <div className="px-(--card-spacing)">
         <FormBanner tone="info" message={notice} />
       </div>
@@ -168,5 +183,6 @@ export function SimpleMaster({ kind, admin }: { kind: MasterKind; admin: string 
         )}
       </div>
     </Card>
+    </div>
   );
 }

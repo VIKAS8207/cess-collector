@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Tooltip } from "@base-ui/react/tooltip";
+import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 import { Brand } from "@/components/brand";
 import { UserMenu } from "@/components/app/user-menu";
 import { isActive, navByRole, type NavItem } from "@/components/app/nav-config";
@@ -30,12 +31,12 @@ function NavLink({
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex h-10 items-center gap-3 rounded-full text-[15px] outline-none transition-colors",
+        "flex h-10 items-center gap-3 rounded-[5px] text-[15px] outline-none transition-colors",
         "focus-visible:ring-3 focus-visible:ring-ring/50",
         collapsed ? "w-10 justify-center" : "w-full px-3",
         nested && !collapsed && "pl-10",
         active
-          ? "bg-tag text-tag-foreground"
+          ? "bg-tag/40 text-primary"
           : "text-foreground hover:bg-muted"
       )}
     >
@@ -87,9 +88,12 @@ function NavTree({
 export function SidebarContent({
   collapsed,
   onNavigate,
+  onToggleCollapsed,
 }: {
   collapsed: boolean;
   onNavigate?: () => void;
+  /** Desktop only: shows the open/close control at the bottom of the sidebar. */
+  onToggleCollapsed?: () => void;
 }) {
   const { user } = useAuth();
   const navGroups = navByRole[user?.roleId ?? "gate_operator"];
@@ -105,7 +109,7 @@ export function SidebarContent({
           <Link
             href="/dashboard"
             onClick={onNavigate}
-            aria-label="SAS Collector home"
+            aria-label="SAAS Collector home"
             className="inline-flex h-10 items-center rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <Brand showName={!collapsed} />
@@ -115,6 +119,21 @@ export function SidebarContent({
           aria-label="Main"
           className={cn("flex-1 overflow-y-auto py-4", collapsed ? "px-3" : "px-3")}
         >
+          {onToggleCollapsed && (
+            <div className={cn("mb-4 flex h-10 items-center", collapsed ? "justify-center" : "justify-between pr-1 pl-3")}>
+              {!collapsed && <span className="text-[15px] font-semibold text-foreground">Menu</span>}
+              <button
+                type="button"
+                onClick={onToggleCollapsed}
+                aria-label={collapsed ? "Open sidebar" : "Close sidebar"}
+                aria-expanded={!collapsed}
+                title={collapsed ? "Open sidebar" : "Close sidebar"}
+                className="flex size-10 items-center justify-center rounded-[5px] text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                {collapsed ? <ArrowRightIcon aria-hidden="true" className="size-[18px]" /> : <ArrowLeftIcon aria-hidden="true" className="size-[18px]" />}
+              </button>
+            </div>
+          )}
           <div className="flex flex-col gap-6">
             {navGroups.map((group) => (
               <div key={group.label} className="flex flex-col gap-2">
