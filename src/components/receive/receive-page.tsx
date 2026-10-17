@@ -16,6 +16,7 @@ import { ReceiptForm } from "@/components/receive/receipt-form";
 import { useAuth } from "@/lib/auth-store";
 import { getTodayReceipts, getVehiclesForReceipt, itemsSummary, type PickerVehicle } from "@/lib/api/agent";
 import { forcedErrors } from "@/lib/api/gate";
+import type { Movement } from "@/lib/domain/types";
 import type { Receipt } from "@/lib/domain/agent-types";
 import { formatTime } from "@/lib/format";
 import { useLiveQuery } from "@/hooks/use-live-query";
@@ -66,6 +67,18 @@ export function ReceivePage() {
     if (vehicles.status !== "ready") return;
     const first = matchVehicles(vehicles.data, q).find((v) => !v.receipt);
     if (first) pick(first);
+  };
+
+  const onScanned = (m: Movement) => {
+    if (vehicles.status !== "ready") return;
+    const v = vehicles.data.find((x) => x.movement.id === m.id);
+    if (!v) {
+      toast.push(`${m.plate || m.fastag} is not at the gate, so it cannot be received.`);
+      return;
+    }
+    setQ(m.plate || m.fastag);
+    if (v.receipt) setOpenId(v.receipt.id);
+    else pick(v);
   };
 
   const onSaved = (r: Receipt) => {
@@ -122,6 +135,7 @@ export function ReceivePage() {
             onSelect={pick}
             onOpenReceipt={setOpenId}
             onClear={() => setSelected(null)}
+            onScanned={onScanned}
           />
           <ReceiptForm
             key={`${reveal.key}:${liveSelected?.movement.id ?? "none"}`}

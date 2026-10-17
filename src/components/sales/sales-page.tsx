@@ -24,6 +24,7 @@ import type { LineStatus } from "@/lib/domain/agent-types";
 import { formatInr, formatQty, formatStamp, formatTime } from "@/lib/format";
 import { useAuth } from "@/lib/auth-store";
 import { useLiveQuery } from "@/hooks/use-live-query";
+import { ScanTruckButton } from "@/components/gate/scan-truck";
 import { useHotkey } from "@/hooks/use-hotkey";
 import { cn } from "cn";
 
@@ -83,7 +84,18 @@ export function SalesPage() {
 
   return (
     <div className="flex flex-col gap-8 lg:gap-10">
-      <PageHeader title="Sales" description="Sell stock from received lots. Partial sales are fine." />
+      <PageHeader
+        title="Sales"
+        description="Sell stock from received lots. Partial sales are fine."
+        actions={
+          <ScanTruckButton
+            onFound={(m) => {
+              setStatus("all");
+              setQ(m.plate || m.fastag);
+            }}
+          />
+        }
+      />
 
       <Card className="gap-4">
         <div className="flex flex-col gap-4 px-(--card-spacing)">

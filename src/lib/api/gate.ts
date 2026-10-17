@@ -24,6 +24,7 @@ import {
   normalizeId,
   openMovements,
   recentPlates,
+  recordWeighment,
   type EntryResult,
 } from "@/lib/domain/store";
 
@@ -383,4 +384,78 @@ export function getReport(kind: ReportKind, f: Filters, opts?: Opts): Promise<Re
       rows: items.filter((i) => !i.movementId || ids.has(i.movementId) || !f.type),
     };
   });
+}
+
+// ---------- gate cameras ----------
+
+/** Latest visit of a known vehicle, found by plate or FASTag. Used to pre-fill driver and trip details. */
+export function knownVehicle(by: { plate?: string; fastag?: string }): Movement | undefined {
+  const p = normalizeId(by.plate ?? "");
+  const t = normalizeId(by.fastag ?? "");
+  return allMovements().find((m) => (p && normalizeId(m.plate) === p) || (t && normalizeId(m.fastag) === t));
+}
+
+const plateLetters = "ABCDEFGHJKLMNPRSTUVWXYZ";
+
+/**
+ * Stand-in for the camera reader. A real plate or FASTag reader plugs in here
+ * and returns the text it recognised from the captured frame.
+ */
+export async function readCamera(kind: "plate" | "fastag"): Promise<string> {
+  await delay(700, 1100);
+  const known = suggestionsFor("");
+  const pickKnown = known.length > 0 && Math.random() < 0.7;
+  const one = known[Math.floor(Math.random() * known.length)];
+  if (kind === "plate") {
+    if (pickKnown) return one.plate;
+    const l = () => plateLetters[Math.floor(Math.random() * plateLetters.length)];
+    const d = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join("");
+    return `MH${d(2)}${l()}${l()}${d(4)}`;
+  }
+  if (pickKnown && one.fastag) return one.fastag;
+  return `3416${Array.from({ length: 14 }, () => Math.floor(Math.random() * 10)).join("")}`;
+}
+
+// ---------- exit by QR scan ----------
+
+export type ScanLookup =
+  | { kind: "inside"; movement: Movement }
+  | { kind: "exited"; movement: Movement }
+  | { kind: "none"; code: string };
+
+/** The text on an entry QR is `SAS-GATE|<entry no>|<plate>|<time>`. Plain entry numbers, plates and FASTags work too. */
+export function parseScan(raw: string): string {
+  const t = raw.trim();
+  return t.startsWith("SAS-GATE|") ? (t.split("|")[1] ?? t) : t;
+}
+
+export async function lookupScan(raw: string): Promise<ScanLookup> {
+  await delay(300, 600);
+  const code = parseScan(raw);
+  const id = normalizeId(code);
+  const match = (m: Movement) =>
+    m.entryNo.toUpperCase() === code.toUpperCase() || (id !== "" && (normalizeId(m.plate) === id || normalizeId(m.fastag) === id));
+  const all = allMovements();
+  const open = all.find((m) => m.status === "Inside" && match(m));
+  if (open) return { kind: "inside", movement: open };
+  const done = all.find((m) => m.status === "Exited" && match(m));
+  if (done) return { kind: "exited", movement: done };
+  return { kind: "none", code: code.toUpperCase() };
+}
+
+// ---------- weight bridge ----------
+
+export async function submitWeighment(id: string, input: { kg: number; source: "bridge" | "manual" }, operator: string) {
+  await delay();
+  return recordWeighment(id, input, operator);
+}
+
+/** Vehicles that have at least one weighment, latest weighing first. */
+export function getWeighments(opts?: Opts): Promise<Movement[]> {
+  return sim(opts, () =>
+    allMovements()
+      .filter((m) => (m.weighments?.length ?? 0) > 0)
+      .sort((a, b) => b.weighments![0].at - a.weighments![0].at)
+      .slice(0, 200)
+  );
 }

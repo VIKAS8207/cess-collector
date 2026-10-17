@@ -49,6 +49,7 @@ export type OtpRecord = { code: string; sentAt: number; revoked: boolean; attemp
 export type ActivityType =
   | "gate_entry"
   | "gate_exit"
+  | "weighment"
   | "receipt"
   | "sale"
   | "return"
@@ -60,6 +61,7 @@ export type ActivityType =
 export const activityTypes: { value: ActivityType; label: string }[] = [
   { value: "gate_entry", label: "Gate entry" },
   { value: "gate_exit", label: "Gate exit" },
+  { value: "weighment", label: "Weighment" },
   { value: "receipt", label: "Receipt" },
   { value: "sale", label: "Sale" },
   { value: "return", label: "Return" },

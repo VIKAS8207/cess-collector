@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { InfoIcon, PlusIcon, SearchIcon, TruckIcon } from "lucide-react";
+import { InfoIcon, QrCodeIcon, ScanLineIcon, TruckIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Segmented } from "@/components/ui/segmented";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { BlockEmpty, BlockError } from "@/components/dashboard/block-states";
@@ -13,11 +14,11 @@ import { Dwell } from "@/components/gate/dwell";
 import { PageHeader } from "@/components/gate/page-header";
 import { StatusPill } from "@/components/gate/status-pill";
 import { MovementDrawer } from "@/components/gate/movement-drawer";
+import { qrPayload } from "@/components/gate/qr-code";
 import { useToast } from "@/components/gate/toast";
-import { RevealPanel, useReveal } from "@/components/gate/reveal-panel";
+import { QrScanner } from "@/components/gate-exit/qr-scanner";
 import { useAuth } from "@/lib/auth-store";
-import { forcedErrors, getInside, lookupClosed, submitExit, submitFlag } from "@/lib/api/gate";
-import { normalizeId } from "@/lib/domain/store";
+import { forcedErrors, getInside, lookupScan, submitExit, submitFlag, type ScanLookup } from "@/lib/api/gate";
 import type { Movement } from "@/lib/domain/types";
 import { formatDate, formatDuration, formatStamp, formatTime } from "@/lib/format";
 import { useLiveQuery } from "@/hooks/use-live-query";
@@ -25,9 +26,18 @@ import { useNow } from "@/hooks/use-now";
 import { useHotkey } from "@/hooks/use-hotkey";
 import { cn } from "cn";
 
-const BODY = "h-[480px]";
+type View = "scan" | "table";
 
-type Panel = { kind: "none"; q: string } | { kind: "exited"; movement: Movement } | null;
+const BODY = "h-[520px]";
+
+function Fact({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-caption text-muted-foreground">{label}</dt>
+      <dd className="text-[15px] wrap-break-word text-foreground">{value || "—"}</dd>
+    </div>
+  );
+}
 
 export function ExitPage() {
   const { user } = useAuth();
@@ -36,15 +46,12 @@ export function ExitPage() {
   const now = useNow(15_000);
   const params = useSearchParams();
   const urlQuery = params.get("q") ?? "";
-  const searchRef = useRef<HTMLInputElement>(null);
-  const newButton = useRef<HTMLButtonElement>(null);
-  const reveal = useReveal("exit-search", !!urlQuery);
+  const scanRef = useRef<HTMLInputElement>(null);
 
-  const [query, setQuery] = useState(urlQuery);
-  const [fromUrl, setFromUrl] = useState(!!urlQuery);
-  const [picked, setPicked] = useState<string | null>(null);
-  const [panel, setPanel] = useState<Panel>(null);
-  const [checking, setChecking] = useState(false);
+  const [view, setView] = useState<View>("scan");
+  const [code, setCode] = useState("");
+  const [looking, setLooking] = useState(false);
+  const [result, setResult] = useState<ScanLookup | null>(null);
   const [approving, setApproving] = useState(false);
   const [flagging, setFlagging] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -52,281 +59,229 @@ export function ExitPage() {
   const inside = useLiveQuery("inside", (attempt) =>
     getInside({ forceError: attempt === 0 && forcedErrors().has("inside") })
   );
-
-  const q = normalizeId(query);
   const all = inside.status === "ready" ? inside.data : [];
-  const matches = q
-    ? all.filter((m) => normalizeId(m.plate).includes(q) || normalizeId(m.fastag).includes(q))
-    : [];
-  const exact = matches.filter((m) => normalizeId(m.plate) === q || normalizeId(m.fastag) === q);
-  const selected =
-    all.find((m) => m.id === picked) ?? (fromUrl && matches.length === 1 ? matches[0] : null);
 
-  const focusSearch = () => {
-    searchRef.current?.focus();
-    searchRef.current?.select();
-  };
-  useHotkey("/", () => (reveal.expanded ? focusSearch() : startNew()));
-
-  const clear = () => {
-    setQuery("");
-    setFromUrl(false);
-    setPicked(null);
-    setPanel(null);
+  const run = async (raw: string) => {
+    if (!raw.trim() || looking) return;
+    setLooking(true);
+    setResult(null);
+    const found = await lookupScan(raw);
+    setLooking(false);
+    setResult(found);
+    setCode("");
   };
 
-  /** Back to step 1 while the form stays open. */
-  const reset = () => {
-    clear();
-    requestAnimationFrame(focusSearch);
+  // Arriving from an "Open exit" link looks the vehicle up straight away.
+  useEffect(() => {
+    if (!urlQuery) return;
+    let live = true;
+    lookupScan(urlQuery).then((r) => live && setResult(r));
+    return () => {
+      live = false;
+    };
+  }, [urlQuery]);
+
+  const focusScan = () => setTimeout(() => scanRef.current?.focus(), 60);
+  useEffect(() => {
+    const t = setTimeout(() => scanRef.current?.focus(), 80);
+    return () => clearTimeout(t);
+  }, []);
+  const scanAnother = () => {
+    setResult(null);
+    setCode("");
+    setView("scan");
+    focusScan();
+  };
+  useHotkey("/", () => {
+    setView("scan");
+    focusScan();
+  });
+
+  const demoScan = () => {
+    const next = [...all].sort((a, b) => a.entryAt! - b.entryAt!)[0];
+    if (next) void run(qrPayload(next));
   };
 
-  /** "New gate exit": a fresh form, slid open. */
-  function startNew() {
-    clear();
-    reveal.open();
-  }
-
-  /** Done with this vehicle: slide the form away. */
-  const finish = () => {
-    clear();
-    reveal.close();
-    newButton.current?.focus();
-  };
-
-  const choose = (m: Movement) => {
-    setPicked(m.id);
-    setPanel(null);
-  };
-
-  const onSearchKey = async (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    if (!q || checking) return;
-    const target = exact[0] ?? matches[0];
-    if (target) {
-      choose(target);
-      return;
-    }
-    setChecking(true);
-    const found = await lookupClosed(query);
-    setChecking(false);
-    setPanel(found.kind === "exited" ? { kind: "exited", movement: found.movement } : { kind: "none", q: query.trim().toUpperCase() });
-  };
-
-  const approve = async () => {
-    if (!selected || approving) return;
+  const confirm = async () => {
+    if (result?.kind !== "inside" || approving) return;
     setApproving(true);
-    const done = await submitExit(selected.id, operator);
+    const done = await submitExit(result.movement.id, operator);
     setApproving(false);
-    if (done) {
-      toast.push(`Exit approved for ${done.plate || done.fastag}.`);
-      finish();
-    } else {
-      toast.push("This vehicle is no longer inside.", "error");
-      finish();
-    }
+    if (done) toast.push(`Exit approved for ${done.plate || done.fastag}.`);
+    else toast.push("This vehicle is no longer inside.", "error");
+    scanAnother();
   };
 
   const flag = async () => {
-    if (panel?.kind !== "none" || flagging) return;
+    if (result?.kind !== "none" || flagging) return;
     setFlagging(true);
-    await submitFlag(panel.q, operator);
+    await submitFlag(result.code, operator);
     setFlagging(false);
-    toast.push(`${panel.q} flagged for a supervisor.`);
-    finish();
+    toast.push(`${result.code} flagged for a supervisor.`);
+    scanAnother();
   };
 
-  const tableRows = q ? matches : all;
+  const m = result && result.kind !== "none" ? result.movement : null;
 
   return (
     <div className="flex flex-col gap-8 lg:gap-10">
       <PageHeader
         title="Gate Exit"
-        description="Find the truck, check its entry, then approve the exit."
+        description="Scan the entry QR code, check the details, then confirm the exit."
         actions={
-          <Button
-            ref={newButton}
-            onClick={startNew}
-            aria-expanded={reveal.expanded}
-            aria-controls="exit-form-panel"
-            title="New gate exit"
-          >
-            <PlusIcon aria-hidden="true" />
-            New gate exit
-          </Button>
+          <Segmented
+            label="Gate exit view"
+            value={view}
+            onChange={(v) => (v === "scan" ? scanAnother() : setView("table"))}
+            options={[
+              { value: "scan", label: "Scan QR" },
+              { value: "table", label: inside.status === "ready" ? `Vehicles inside (${all.length})` : "Vehicles inside" },
+            ]}
+          />
         }
       />
 
-      <RevealPanel id="exit-form-panel" mounted={reveal.mounted} expanded={reveal.expanded} title="New gate exit" onCancel={finish}>
+      <div hidden={view !== "scan"} className="grid animate-in grid-cols-1 items-start gap-6 fade-in slide-in-from-bottom-2 duration-300 lg:grid-cols-2">
         <Card className="gap-0 p-0 [--card-spacing:--spacing(6)]">
-          <div className="flex flex-col gap-8 p-6">
-            <section className="flex flex-col gap-3" aria-labelledby="x-search">
-              <h2 id="x-search" className="text-[17px] tracking-[-0.2px] text-foreground">
-                1. Find the vehicle
-              </h2>
-              <label htmlFor="exit-search" className="sr-only">
-                Plate number or FASTag ID
+          <div className="flex flex-col gap-6 p-6">
+            <h2 className="text-[17px] tracking-[-0.2px] text-foreground">1. Scan the QR code</h2>
+            <QrScanner onScan={(text) => void run(text)} disabled={looking} />
+            <form
+              className="flex flex-col gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void run(code);
+              }}
+            >
+              <label htmlFor="exit-scan" className="text-sm text-foreground">
+                Scanner field
               </label>
               <div className="relative">
-                <SearchIcon
-                  aria-hidden="true"
-                  className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-muted-foreground"
-                />
+                <ScanLineIcon aria-hidden="true" className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  id="exit-search"
-                  ref={searchRef}
+                  id="exit-scan"
+                  ref={scanRef}
                   data-page-search
-                  value={query}
-                  onChange={(e) => {
-                    setQuery(e.target.value.toUpperCase());
-                    setFromUrl(false);
-                    setPicked(null);
-                    setPanel(null);
-                  }}
-                  onKeyDown={onSearchKey}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
                   autoComplete="off"
                   spellCheck={false}
-                  placeholder="Scan or type plate / FASTag"
-                  title="Search (/)"
+                  placeholder="Scan with the handheld scanner, or type the entry number"
+                  title="Scan (/)"
                   aria-keyshortcuts="/"
-                  className="h-14 pr-12 pl-12 text-xl tracking-wider"
+                  className="h-12 pr-12 pl-10"
                 />
-                {checking && (
-                  <Spinner className="absolute top-1/2 right-4 -translate-y-1/2 text-muted-foreground" />
-                )}
+                {looking && <Spinner className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground" />}
               </div>
               <p className="text-caption text-muted-foreground">
-                Press Enter to pick the top match. Press / to search from anywhere on this page.
+                A handheld scanner types the code here and presses Enter. Press / to jump back to this field.
               </p>
+            </form>
+            <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
+              <Button type="button" variant="ghost" onClick={demoScan} disabled={looking || all.length === 0}>
+                <QrCodeIcon aria-hidden="true" />
+                Demo: scan the oldest vehicle inside
+              </Button>
+            </div>
+          </div>
+        </Card>
 
-              {q && !selected && matches.length > 0 && (
-                <ul aria-label="Matching vehicles" className="flex flex-col divide-y divide-border rounded-field border border-border">
-                  {matches.slice(0, 5).map((m) => (
-                    <li key={m.id}>
-                      <button
-                        type="button"
-                        onClick={() => choose(m)}
-                        className="flex min-h-14 w-full items-center justify-between gap-3 px-3 py-2 text-left outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
-                      >
-                        <span className="flex min-w-0 flex-col">
-                          <span className="text-[15px] text-foreground">{m.plate || m.fastag}</span>
-                          <span className="truncate text-caption text-muted-foreground">
-                            {m.driverName} · in at {formatTime(m.entryAt!)}
-                          </span>
-                        </span>
-                        <Dwell ms={now ? now - m.entryAt! : null} />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {q && !selected && inside.status === "ready" && matches.length === 0 && !panel && (
-                <p role="status" className="text-sm text-muted-foreground">
-                  No vehicle inside matches {query}. Press Enter to check the records.
-                </p>
-              )}
-            </section>
+        <Card className="gap-0 p-0 [--card-spacing:--spacing(6)]">
+          <div className="flex flex-col gap-6 p-6">
+            <h2 className="text-[17px] tracking-[-0.2px] text-foreground">2. Check the details and confirm</h2>
 
-            {panel?.kind === "none" && (
-              <section
-                role="status"
-                className="flex flex-col gap-4 rounded-card border border-border bg-muted p-5"
-              >
+            {!result && !looking && (
+              <div className="flex min-h-80 flex-col items-center justify-center gap-3 text-center">
+                <QrCodeIcon aria-hidden="true" className="size-8 text-muted-foreground" />
+                <p className="text-body-md text-muted-foreground">Scan a QR code to see the vehicle here.</p>
+              </div>
+            )}
+
+            {looking && (
+              <div role="status" aria-label="Looking up the entry" className="flex min-h-80 flex-col gap-4">
+                <Skeleton className="h-8 w-48" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-24 w-full" />
+              </div>
+            )}
+
+            {result?.kind === "none" && (
+              <div role="status" className="flex flex-col gap-4 rounded-card border border-border bg-muted p-5">
                 <p className="flex items-start gap-2 text-[15px] text-foreground">
                   <InfoIcon aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-primary" />
-                  No open entry found for {panel.q}.
+                  No open entry found for {result.code}.
                 </p>
                 <div className="flex flex-wrap gap-3">
-                  <Button variant="outline" onClick={reset}>
-                    Re-check details
+                  <Button variant="outline" onClick={scanAnother}>
+                    Scan again
                   </Button>
                   <Button variant="outline" onClick={flag} disabled={flagging} aria-busy={flagging}>
                     {flagging && <Spinner />}
                     Flag for supervisor
                   </Button>
                 </div>
-              </section>
+              </div>
             )}
 
-            {panel?.kind === "exited" && (
-              <section
-                role="status"
-                className="flex flex-col gap-4 rounded-card border border-border bg-muted p-5"
-              >
+            {result?.kind === "exited" && m && (
+              <div role="status" className="flex flex-col gap-4 rounded-card border border-border bg-muted p-5">
                 <p className="flex items-start gap-2 text-[15px] text-foreground">
                   <InfoIcon aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-primary" />
-                  {panel.movement.plate || panel.movement.fastag} already exited on{" "}
-                  {formatDate(panel.movement.exitAt!)} at {formatTime(panel.movement.exitAt!)}, after{" "}
-                  {formatDuration(panel.movement.exitAt! - panel.movement.entryAt!)}.
+                  {m.plate || m.fastag} already exited on {formatDate(m.exitAt!)} at {formatTime(m.exitAt!)}, after{" "}
+                  {formatDuration(m.exitAt! - m.entryAt!)}.
                 </p>
                 <div>
-                  <Button variant="outline" onClick={reset}>
-                    Search again
+                  <Button variant="outline" onClick={scanAnother}>
+                    Scan another
                   </Button>
                 </div>
-              </section>
+              </div>
             )}
 
-            {selected && (
-              <>
-                <section className="flex flex-col gap-4" aria-labelledby="x-check">
-                  <h2 id="x-check" className="text-[17px] tracking-[-0.2px] text-foreground">
-                    2. Check the entry
-                  </h2>
-                  <div className="rounded-card border border-border p-5">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <p className="text-heading-lg text-foreground">{selected.plate || "No plate"}</p>
-                      <StatusPill movement={selected} />
-                    </div>
-                    <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-                      <Item label="FASTag" value={selected.fastag || "No FASTag"} />
-                      <Item label="Driver" value={selected.driverName} />
-                      <Item label="Vehicle type" value={selected.vehicleType} />
-                      <Item label="Transporter" value={selected.transporter} />
-                      <Item label="Entry time" value={formatStamp(selected.entryAt!)} />
-                      <Item label="Entry reference" value={`${selected.entryNo}${selected.reference ? ` · ${selected.reference}` : ""}`} />
-                      <div className="sm:col-span-2">
-                        <dt className="text-caption text-muted-foreground">Time inside</dt>
-                        <dd className="mt-1 text-[15px]">
-                          <Dwell ms={now ? now - selected.entryAt! : null} />
-                        </dd>
-                      </div>
-                    </dl>
+            {result?.kind === "inside" && m && (
+              <div className="flex flex-col gap-6">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-heading-lg break-all text-foreground">{m.plate || "No plate"}</p>
+                    <p className="text-caption text-muted-foreground">Entry {m.entryNo}</p>
                   </div>
-                </section>
-                <section className="flex flex-col gap-3" aria-labelledby="x-approve">
-                  <h2 id="x-approve" className="text-[17px] tracking-[-0.2px] text-foreground">
-                    3. Approve
-                  </h2>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Button size="lg" onClick={approve} disabled={approving} aria-busy={approving}>
-                      {approving && <Spinner />}
-                      {approving ? "Approving" : "Approve exit"}
-                    </Button>
-                    <Button variant="ghost" size="lg" onClick={reset} disabled={approving}>
-                      Choose a different vehicle
-                    </Button>
-                  </div>
-                  <p className="text-caption text-muted-foreground">
-                    The exit time and your name are stamped automatically.
-                  </p>
-                </section>
-              </>
+                  <StatusPill movement={m} />
+                </div>
+                <dl className="grid gap-4 sm:grid-cols-2">
+                  <Fact label="Driver" value={m.driverName} />
+                  <Fact label="Driver phone" value={<span className="tabular-nums">{m.driverPhone}</span>} />
+                  <Fact label="FASTag" value={<span className="tabular-nums">{m.fastag || "No FASTag"}</span>} />
+                  <Fact label="Vehicle type" value={m.vehicleType} />
+                  <Fact label="Transporter" value={m.transporter} />
+                  <Fact label="Purpose" value={m.purpose} />
+                  <Fact label="Reference" value={m.reference} />
+                  <Fact label="Entered by" value={`${m.operator} · ${m.gate}`} />
+                  <Fact label="Entry time" value={<span className="tabular-nums">{formatStamp(m.entryAt!)}</span>} />
+                  <Fact label="Time inside" value={<Dwell ms={now ? now - m.entryAt! : null} />} />
+                </dl>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button size="lg" onClick={confirm} disabled={approving} aria-busy={approving}>
+                    {approving && <Spinner />}
+                    {approving ? "Confirming" : "Confirm exit"}
+                  </Button>
+                  <Button variant="ghost" size="lg" onClick={scanAnother} disabled={approving}>
+                    Scan another
+                  </Button>
+                </div>
+                <p className="text-caption text-muted-foreground">The exit time and your name are stamped automatically.</p>
+              </div>
             )}
           </div>
         </Card>
-      </RevealPanel>
+      </div>
 
-        <Card className="gap-4">
+      {view === "table" && (
+        <Card className="animate-in gap-4 fade-in slide-in-from-bottom-2 duration-300">
           <CardHeader>
             <CardTitle className="text-heading-md">Vehicles currently inside</CardTitle>
             <CardDescription>
-              {inside.status === "ready"
-                ? q
-                  ? `${tableRows.length} of ${all.length} match`
-                  : `${all.length} inside`
-                : "Longest stay first"}
+              {inside.status === "ready" ? `${all.length} inside, longest stay first` : "Longest stay first"}
             </CardDescription>
           </CardHeader>
           <div className="px-(--card-spacing)">
@@ -346,70 +301,49 @@ export function ExitPage() {
             )}
             {inside.status === "error" && <BlockError onRetry={inside.retry} className={BODY} />}
             {inside.status === "ready" && all.length === 0 && (
-              <BlockEmpty
-                icon={TruckIcon}
-                text="No vehicles inside."
-                actionLabel="New gate exit"
-                onAction={startNew}
-                className={BODY}
-              />
+              <BlockEmpty icon={TruckIcon} text="No vehicles inside." actionLabel="Scan QR" onAction={scanAnother} className={BODY} />
             )}
-            {inside.status === "ready" && all.length > 0 && tableRows.length === 0 && (
-              <BlockEmpty
-                icon={SearchIcon}
-                text="No vehicle inside matches your search."
-                actionLabel="Clear search"
-                onAction={clear}
-                className={BODY}
-              />
-            )}
-            {inside.status === "ready" && tableRows.length > 0 && (
-              <div className={cn(BODY, "@container overflow-auto")}>
-                <table className="w-full min-w-[320px]">
+            {inside.status === "ready" && all.length > 0 && (
+              <div className={cn(BODY, "overflow-auto")}>
+                <table className="w-full min-w-205 text-[15px]">
                   <caption className="sr-only">Vehicles currently inside</caption>
                   <thead>
                     <tr className="h-10 border-b border-border text-left text-caption text-muted-foreground">
-                      <th scope="col" className="font-normal">Vehicle</th>
-                      <th scope="col" className="hidden font-normal @md:table-cell">Entry</th>
-                      <th scope="col" className="font-normal">Dwell</th>
-                      <th scope="col" className="hidden font-normal @xl:table-cell">Status</th>
+                      <th scope="col" className="pr-4 font-normal">Vehicle</th>
+                      <th scope="col" className="pr-4 font-normal">Entry no</th>
+                      <th scope="col" className="pr-4 font-normal">Driver</th>
+                      <th scope="col" className="pr-4 font-normal">Type</th>
+                      <th scope="col" className="pr-4 font-normal">Entry</th>
+                      <th scope="col" className="pr-4 font-normal">Dwell</th>
+                      <th scope="col" className="font-normal">Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {[...tableRows]
+                    {[...all]
                       .sort((a, b) => a.entryAt! - b.entryAt!)
-                      .map((m) => (
-                        <tr
-                          key={m.id}
-                          onClick={() => setOpenId(m.id)}
-                          className={cn(
-                            "h-14 cursor-pointer border-b border-border last:border-b-0 hover:bg-muted",
-                            selected?.id === m.id && "bg-tag/40"
-                          )}
-                        >
-                          <th scope="row" className="py-1 pr-3 text-left font-normal">
+                      .map((v: Movement) => (
+                        <tr key={v.id} onClick={() => setOpenId(v.id)} className="h-14 cursor-pointer border-b border-border last:border-b-0 hover:bg-muted">
+                          <th scope="row" className="pr-4 text-left font-normal">
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setOpenId(m.id);
+                                setOpenId(v.id);
                               }}
-                              className="flex flex-col rounded-field text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                              className="rounded-field text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                             >
-                              <span className="text-[15px] text-foreground">{m.plate || "No plate"}</span>
-                              <span className="max-w-40 truncate text-caption text-muted-foreground">
-                                {m.driverName}
-                              </span>
+                              {v.plate || "No plate"}
                             </button>
                           </th>
-                          <td className="hidden pr-3 text-caption tabular-nums text-muted-foreground @md:table-cell">
-                            {formatTime(m.entryAt!)}
+                          <td className="pr-4 tabular-nums text-muted-foreground">{v.entryNo}</td>
+                          <td className="pr-4">{v.driverName}</td>
+                          <td className="pr-4">{v.vehicleType}</td>
+                          <td className="pr-4 text-caption tabular-nums text-muted-foreground">{formatTime(v.entryAt!)}</td>
+                          <td className="pr-4 text-caption">
+                            <Dwell ms={now ? now - v.entryAt! : null} />
                           </td>
-                          <td className="pr-3 text-caption">
-                            <Dwell ms={now ? now - m.entryAt! : null} />
-                          </td>
-                          <td className="hidden @xl:table-cell">
-                            <StatusPill movement={m} />
+                          <td>
+                            <StatusPill movement={v} />
                           </td>
                         </tr>
                       ))}
@@ -419,27 +353,16 @@ export function ExitPage() {
             )}
           </div>
         </Card>
+      )}
 
       <MovementDrawer
         id={openId}
         onClose={() => setOpenId(null)}
         exitAction={(key) => {
-          setQuery(key);
-          setFromUrl(true);
-          setPicked(null);
-          setPanel(null);
-          if (!reveal.expanded) reveal.open();
+          setView("scan");
+          void run(key);
         }}
       />
-    </div>
-  );
-}
-
-function Item({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-caption text-muted-foreground">{label}</dt>
-      <dd className="text-[15px] break-words text-foreground">{value || "—"}</dd>
     </div>
   );
 }

@@ -6,9 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BlockEmpty, BlockError } from "@/components/dashboard/block-states";
+import { ScanTruckButton } from "@/components/gate/scan-truck";
 import { Dwell } from "@/components/gate/dwell";
 import type { Query } from "@/hooks/use-live-query";
 import { useNow } from "@/hooks/use-now";
+import type { Movement } from "@/lib/domain/types";
 import type { PickerVehicle } from "@/lib/api/agent";
 import { normalizeId } from "@/lib/domain/store";
 import { formatTime } from "@/lib/format";
@@ -36,6 +38,7 @@ export function VehiclePicker({
   onSelect,
   onOpenReceipt,
   onClear,
+  onScanned,
 }: {
   query: Query<PickerVehicle[]>;
   q: string;
@@ -46,6 +49,7 @@ export function VehiclePicker({
   onSelect: (v: PickerVehicle) => void;
   onOpenReceipt: (receiptId: string) => void;
   onClear: () => void;
+  onScanned: (m: Movement) => void;
 }) {
   const now = useNow(30_000);
   const rows = query.status === "ready" ? matchVehicles(query.data, q) : [];
@@ -81,6 +85,9 @@ export function VehiclePicker({
             aria-keyshortcuts="/"
             className="pl-9"
           />
+        </div>
+        <div>
+          <ScanTruckButton onFound={onScanned} label="Scan truck QR" />
         </div>
 
         {query.status === "loading" && (

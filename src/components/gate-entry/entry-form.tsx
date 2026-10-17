@@ -10,7 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { FormBanner } from "@/components/auth/form-banner";
 import { TextField } from "@/components/auth/text-field";
-import { submitEntry, suggestionsFor } from "@/lib/api/gate";
+import { knownVehicle, submitEntry, suggestionsFor } from "@/lib/api/gate";
+import { CameraIcon } from "lucide-react";
+import { CameraDialog, type CameraKind } from "@/components/gate-entry/camera-dialog";
 import { checkEntry, normalizeId, useStoreVersion } from "@/lib/domain/store";
 import {
   type EntryInput,
@@ -140,6 +142,9 @@ export function EntryForm({
   const [attempted, setAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState(false);
+  const [cam, setCam] = useState<CameraKind | null>(null);
+  const [shots, setShots] = useState<{ plate?: string; fastag?: string }>({});
+  const [captureNote, setCaptureNote] = useState<string | null>(null);
   const [blocked, setBlocked] = useState<{ kind: "duplicate" | "conflict"; movement: Movement } | null>(null);
   const set = (patch: Partial<Form>) => setF((p) => ({ ...p, ...patch }));
 
@@ -173,13 +178,40 @@ export function EntryForm({
     set({
       plate: m.plate,
       fastag: tagOn && !f.fastag ? m.fastag : f.fastag,
-      driverName: f.driverName || m.driverName,
-      driverPhone: f.driverPhone || m.driverPhone,
       vehicleType: m.vehicleType,
       transporter: f.transporter || m.transporter,
       vehicleClass: f.vehicleClass || m.vehicleClass,
       bank: f.bank || m.bank,
     });
+
+  /** A camera result fills the plate or FASTag and the vehicle details seen on its last visit. The driver is never copied. */
+  const applyCapture = (kind: CameraKind, value: string, image: string) => {
+    setCam(null);
+    setShots((s) => ({ ...s, [kind]: image }));
+    const text = value.toUpperCase();
+    const known = knownVehicle(kind === "plate" ? { plate: text } : { fastag: text });
+    setF((p) => ({
+      ...p,
+      ...(kind === "plate" ? { plate: text, plateOverride: false } : { fastag: text, noFastag: false }),
+      ...(known
+        ? {
+            plate: kind === "fastag" && !p.plate && p.mode !== "fastag" ? known.plate : kind === "plate" ? text : p.plate,
+            fastag: kind === "plate" && !p.fastag && p.mode !== "plate" ? known.fastag : kind === "fastag" ? text : p.fastag,
+            vehicleType: known.vehicleType,
+            transporter: p.transporter || known.transporter,
+            vehicleClass: p.vehicleClass || known.vehicleClass,
+            bank: p.bank || known.bank,
+          }
+        : {}),
+    }));
+    const what = kind === "plate" ? "Plate" : "FASTag";
+    setCaptureNote(
+      known
+        ? `${what} ${text} is a known vehicle. Vehicle details were filled from its last visit. Enter the driver name.`
+        : `${what} ${text} was read. This vehicle is new, so enter the driver and trip details.`
+    );
+    setTimeout(() => document.getElementById("ge-driver")?.focus(), 80);
+  };
 
   const submit = async () => {
     if (submitting) return;
@@ -217,6 +249,8 @@ export function EntryForm({
         setBlocked(null);
         onSaved(result.movement);
         setF({ ...INITIAL, mode: f.mode });
+        setShots({});
+        setCaptureNote(null);
         setAttempted(false);
         setTimeout(() => focusFirst(f.mode), 80);
       } else {
@@ -297,6 +331,31 @@ export function EntryForm({
               focusFirst(mode);
             }}
           />
+        </Section>
+
+        <Section
+          title="Gate cameras"
+          hint="Capture the number plate and the FASTag. The details fill in. The driver name is always typed."
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <CameraTile
+              title="Plate camera"
+              valueLabel="Plate"
+              value={f.plate}
+              image={shots.plate}
+              disabled={!plateOn || submitting}
+              onCapture={() => setCam("plate")}
+            />
+            <CameraTile
+              title="Front camera (FASTag)"
+              valueLabel="FASTag"
+              value={f.fastag}
+              image={shots.fastag}
+              disabled={!tagOn || f.noFastag || submitting}
+              onCapture={() => setCam("fastag")}
+            />
+          </div>
+          <FormBanner tone="info" message={captureNote} />
         </Section>
 
         <Section
@@ -419,6 +478,7 @@ export function EntryForm({
               id="ge-driver"
               label="Driver name"
               required
+              hint="Required. Ask the driver."
               value={f.driverName}
               onChange={(v) => set({ driverName: v })}
               error={shown.driver}
@@ -516,6 +576,42 @@ export function EntryForm({
           {submitting ? "Saving" : "Save entry"}
         </Button>
       </form>
+      <CameraDialog kind={cam} onClose={() => setCam(null)} onUse={applyCapture} />
     </Card>
+  );
+}
+
+function CameraTile({
+  title,
+  valueLabel,
+  value,
+  image,
+  disabled,
+  onCapture,
+}: {
+  title: string;
+  valueLabel: string;
+  value: string;
+  image?: string;
+  disabled: boolean;
+  onCapture: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-card border border-border p-4">
+      <p className="text-[15px] text-foreground">{title}</p>
+      <div className="flex aspect-8/5 items-center justify-center overflow-hidden rounded-field bg-muted">
+        {image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={image} alt={`${title} capture`} className="size-full object-cover" />
+        ) : (
+          <CameraIcon aria-hidden="true" className="size-8 text-muted-foreground" />
+        )}
+      </div>
+      <p className="text-caption text-muted-foreground">{value ? `${valueLabel}: ${value}` : "Nothing captured yet"}</p>
+      <Button type="button" variant="outline" onClick={onCapture} disabled={disabled}>
+        <CameraIcon aria-hidden="true" />
+        Capture
+      </Button>
+    </div>
   );
 }

@@ -73,7 +73,11 @@ export function buildSeed(now: number): { movements: Movement[]; events: Excepti
     seq += 1;
     const audit = [{ at: entryAt, by: operator, action: "Entry recorded" }];
     if (exitAt) audit.push({ at: exitAt, by: operator, action: "Exit approved" });
+    const weighed = r() < 0.5;
+    const weight = Math.round(9000 + r() * 33000);
+    const bridge = r() < 0.8;
     return {
+      weighments: weighed ? [{ kg: weight, source: bridge ? ("bridge" as const) : ("manual" as const), at: entryAt + 12 * MINUTE, by: operator }] : undefined,
       id: `mv-${seq}`,
       entryNo: `GE-${seq}`,
       plate: f.plate,

@@ -150,6 +150,24 @@ export function MovementDrawer({
                   </dl>
                 </section>
 
+                {(m.weighments?.length ?? 0) > 0 && (
+                  <section aria-labelledby="d-weight" className="flex flex-col gap-3">
+                    <h3 id="d-weight" className="text-heading-md text-foreground">
+                      Weight
+                    </h3>
+                    <ul className="flex flex-col gap-2 text-sm">
+                      {m.weighments!.map((w, i) => (
+                        <li key={i} className="flex flex-col">
+                          <span className="tabular-nums text-foreground">{w.kg.toLocaleString("en-IN")} kg</span>
+                          <span className="text-caption text-muted-foreground">
+                            {w.source === "bridge" ? "Weight bridge" : "Typed in"} · {formatStamp(w.at)} · {w.by}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+
                 <section aria-labelledby="d-timeline" className="flex flex-col gap-4">
                   <h3 id="d-timeline" className="text-heading-md text-foreground">
                     Timeline

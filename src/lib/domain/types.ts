@@ -31,6 +31,13 @@ export const exceptionLabels: Record<ExceptionKind, string> = {
 
 export type AuditEntry = { at: number; by: string; action: string; note?: string };
 
+export type Weighment = {
+  kg: number;
+  source: "bridge" | "manual";
+  at: number;
+  by: string;
+};
+
 export type Movement = {
   id: string;
   entryNo: string;
@@ -62,6 +69,8 @@ export type Movement = {
     clearedBy?: string;
   };
   audit: AuditEntry[];
+  /** Weights taken on the weight bridge (or typed in) while the truck was inside. */
+  weighments?: Weighment[];
 };
 
 export type ExceptionEvent = {

@@ -280,3 +280,23 @@ export function clearFlag(id: string, operator: string): Movement | null {
 }
 
 export { DAY, HOUR };
+
+export function recordWeighment(
+  id: string,
+  input: { kg: number; source: "bridge" | "manual" },
+  operator: string
+): Movement | null {
+  const m = getMovement(id);
+  if (!m || !(input.kg > 0)) return null;
+  const now = Date.now();
+  (m.weighments ??= []).unshift({ kg: input.kg, source: input.source, at: now, by: operator });
+  m.updatedAt = now;
+  m.audit.push({
+    at: now,
+    by: operator,
+    action: "Weighed",
+    note: `${input.kg.toLocaleString("en-IN")} kg (${input.source === "bridge" ? "weight bridge" : "typed in"})`,
+  });
+  commit();
+  return m;
+}

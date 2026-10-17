@@ -11,6 +11,7 @@ import {
   LayoutDashboardIcon,
   LogInIcon,
   LogOutIcon,
+  ScaleIcon,
   TruckIcon,
   UserIcon,
   SettingsIcon,
@@ -42,6 +43,7 @@ export const navByRole: Record<RoleId, NavGroup[]> = {
       items: [
         { label: "Gate Entry", href: "/gate-entry", icon: LogInIcon },
         { label: "Gate Exit", href: "/gate-exit", icon: LogOutIcon },
+        { label: "Weight Bridge", href: "/weight-bridge", icon: ScaleIcon },
         { label: "All Vehicles", href: "/vehicles", icon: TruckIcon },
       ],
     },

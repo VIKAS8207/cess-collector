@@ -455,6 +455,9 @@ export function activityEvents(now: number): ActivityEvent[] {
     if (m.exitAt) {
       push({ id: `${m.id}-out`, at: m.exitAt, role: "gate_operator", user: m.exitOperator ?? m.operator, type: "gate_exit", summary: `Exit ${m.plate || m.fastag} approved`, ref: m.plate || m.fastag, payload: [["Entry no", m.entryNo], ["Plate", m.plate], ["Driver", m.driverName], ["Gate", m.gate]] });
     }
+    for (const [i, w] of (m.weighments ?? []).entries()) {
+      push({ id: `${m.id}-w${i}`, at: w.at, role: "gate_operator", user: w.by, type: "weighment", summary: `Weighed ${m.plate || m.fastag}: ${w.kg.toLocaleString("en-IN")} kg`, ref: m.plate || m.fastag, payload: [["Entry no", m.entryNo], ["Plate", m.plate], ["Weight", `${w.kg} kg`], ["Source", w.source === "bridge" ? "Weight bridge" : "Typed in"]] });
+    }
     if (m.status === "Flagged" && m.flag) {
       push({ id: `${m.id}-flag`, at: m.flag.at, role: "gate_operator", user: m.operator, type: "gate_exit", summary: `Exit without entry flagged ${m.plate || m.fastag}`, ref: m.plate || m.fastag, payload: [["Reason", m.flag.reason], ["Plate", m.plate]] });
     }

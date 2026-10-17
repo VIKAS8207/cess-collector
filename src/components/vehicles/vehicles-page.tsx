@@ -27,6 +27,7 @@ import {
 import { formatStamp } from "@/lib/format";
 import { useLiveQuery } from "@/hooks/use-live-query";
 import { useNow } from "@/hooks/use-now";
+import { ScanTruckButton } from "@/components/gate/scan-truck";
 import { useHotkey } from "@/hooks/use-hotkey";
 import { cn } from "cn";
 
@@ -121,7 +122,11 @@ export function VehiclesPage() {
 
   return (
     <div className="flex flex-col gap-8 lg:gap-10">
-      <PageHeader title="All Vehicles" description="Every entry and exit in one list." />
+      <PageHeader
+        title="All Vehicles"
+        description="Every entry and exit in one list."
+        actions={<ScanTruckButton onFound={(m) => onSearch(m.plate || m.fastag)} />}
+      />
 
       <Card className="gap-5">
         <div className="flex flex-col gap-4 px-(--card-spacing)">
