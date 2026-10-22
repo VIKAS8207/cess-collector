@@ -6,6 +6,7 @@ import {
   type ExceptionEvent,
   type Movement,
   type Purpose,
+  type Weighment,
   type VehicleType,
 } from "./types";
 
@@ -20,6 +21,12 @@ function rng(seed: number) {
   };
 }
 
+/** A flat placeholder picture standing in for a photo taken at the bridge. */
+function photoFor(stage: string, product: string) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300"><rect width="480" height="300" fill="#0d253d"/><text x="240" y="145" font-family="sans-serif" font-size="22" fill="#fff" text-anchor="middle">${stage} weighing</text><text x="240" y="178" font-family="sans-serif" font-size="16" fill="#9fb3c8" text-anchor="middle">${product}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 export const operators = ["Avery Morgan", "Ravi Kumar", "Meera Shah"];
 const firstNames = ["Ramesh", "Suresh", "Mahesh", "Imran", "Gurpreet", "Vijay", "Anil", "Sanjay", "Deepak", "Harish", "Mohan", "Irfan", "Karthik", "Naveen", "Pradeep"];
 const lastNames = ["Yadav", "Patil", "Singh", "Khan", "Reddy", "Sharma", "Gowda", "Nair", "Chauhan", "Mishra"];
@@ -28,8 +35,9 @@ const states = ["MH", "GJ", "KA", "TN", "RJ", "UP", "DL", "MP"];
 const letters = "ABCDEFGHJKLMNPRSTUVWXYZ";
 const classes = ["Class 4 · Truck (2 axle)", "Class 5 · Truck (3 axle)", "Class 6 · Truck (4-6 axle)", "Class 7 · Truck (7+ axle)"];
 const banks = ["HDFC Bank", "ICICI Bank", "SBI", "Axis Bank", "IDFC FIRST Bank", "Paytm Payments Bank"];
+const products = ["Basmati rice", "Wheat", "Sugar", "Soybean oil", "Onion", "Toor dal"];
 const types: VehicleType[] = ["Truck", "Truck", "Truck", "Trailer", "Tanker", "Container", "Container", "Pickup"];
-const purposeList: Purpose[] = ["Delivery", "Delivery", "Pickup", "Pickup", "Transfer", "Service"];
+const purposeList: Purpose[] = ["Loading", "Unloading", "Unloading"];
 
 type Fleet = {
   plate: string;
@@ -73,11 +81,21 @@ export function buildSeed(now: number): { movements: Movement[]; events: Excepti
     seq += 1;
     const audit = [{ at: entryAt, by: operator, action: "Entry recorded" }];
     if (exitAt) audit.push({ at: exitAt, by: operator, action: "Exit approved" });
-    const weighed = r() < 0.5;
-    const weight = Math.round(9000 + r() * 33000);
+    // Trucks inside for a while have always been weighed; the newest ones are left for the weight bridge demo.
+    const weighed = exitAt ? r() < 0.5 : now - entryAt > 40 * MINUTE;
+    const grossKg = Math.round(18000 + r() * 24000);
+    const tareKg = Math.round(grossKg * (0.28 + r() * 0.17));
     const bridge = r() < 0.8;
+    const product = pick(products);
+    const src = bridge ? ("bridge" as const) : ("manual" as const);
+    const weighments: Weighment[] | undefined = weighed
+      ? [
+          ...(exitAt ? [{ stage: "tare" as const, kg: tareKg, source: src, at: exitAt - 15 * MINUTE, by: "Sanjay Verma", product, photo: photoFor("Tare", product) }] : []),
+          { stage: "gross" as const, kg: grossKg, source: src, at: entryAt + 12 * MINUTE, by: "Sanjay Verma", product, photo: photoFor("Gross", product) },
+        ]
+      : undefined;
     return {
-      weighments: weighed ? [{ kg: weight, source: bridge ? ("bridge" as const) : ("manual" as const), at: entryAt + 12 * MINUTE, by: operator }] : undefined,
+      weighments,
       id: `mv-${seq}`,
       entryNo: `GE-${seq}`,
       plate: f.plate,

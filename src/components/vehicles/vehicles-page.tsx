@@ -1,8 +1,9 @@
 "use client";
 
+import { DataTable, TablePager, type Column } from "@/components/ui/data-table";
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CalendarIcon, SearchIcon, TruckIcon, XIcon } from "lucide-react";
+import { CalendarIcon, EyeIcon, SearchIcon, TruckIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,7 @@ import {
   purposes,
   statuses,
   vehicleTypes,
+  type Movement,
   type Purpose,
   type Status,
   type VehicleType,
@@ -29,10 +31,21 @@ import { useLiveQuery } from "@/hooks/use-live-query";
 import { useNow } from "@/hooks/use-now";
 import { ScanTruckButton } from "@/components/gate/scan-truck";
 import { useHotkey } from "@/hooks/use-hotkey";
-import { cn } from "cn";
 
 const DEFAULT_RANGE = "30d";
-const PAGE_SIZES = ["25", "50", "100"];
+const PAGE_SIZES = [25, 50, 100];
+const vehicleColumns = (now: number): Column<Movement>[] => [
+  { key: "plate", header: "Plate", primary: true, cell: (m) => m.plate || "No plate" },
+  { key: "fastag", header: "FASTag", hideBelow: "4xl", cell: (m) => <span className="text-caption tabular-nums text-muted-foreground">{m.fastag || "—"}</span> },
+  { key: "driver", header: "Driver", hideBelow: "md", cell: (m) => m.driverName },
+  { key: "type", header: "Type", hideBelow: "2xl", cell: (m) => m.vehicleType },
+  { key: "transporter", header: "Transporter", hideBelow: "5xl", cell: (m) => m.transporter || "—" },
+  { key: "entry", header: "Entry", cell: (m) => <span className="text-caption tabular-nums text-muted-foreground">{m.entryAt ? formatStamp(m.entryAt) : "—"}</span> },
+  { key: "exit", header: "Exit", hideBelow: "xl", cell: (m) => <span className="text-caption tabular-nums text-muted-foreground">{m.exitAt ? formatStamp(m.exitAt) : "—"}</span> },
+  { key: "status", header: "Status", cell: (m) => <StatusPill movement={m} /> },
+  { key: "dwell", header: "Dwell", align: "right", cell: (m) => (m.entryAt ? <span className="text-caption"><Dwell ms={(m.exitAt ?? now) - m.entryAt} open={m.status === "Inside"} /></span> : "—") },
+];
+
 const BODY = "min-h-[600px]";
 
 const rangeOptions = [
@@ -66,7 +79,7 @@ export function VehiclesPage() {
   const from = params.get("from") ?? "";
   const to = params.get("to") ?? "";
   const page = Math.max(1, Number(params.get("page")) || 1);
-  const size = PAGE_SIZES.includes(params.get("size") ?? "") ? Number(params.get("size")) : 25;
+  const size = PAGE_SIZES.includes(Number(params.get("size"))) ? Number(params.get("size")) : 25;
 
   const update = (patch: Record<string, string | null>) => {
     const sp = new URLSearchParams(latest.current);
@@ -260,107 +273,31 @@ export function VehiclesPage() {
             />
           )}
           {result.status === "ready" && result.data.total > 0 && (
-            <div className={cn(BODY, "@container overflow-x-auto")}>
-              <table className="w-full min-w-[420px]">
-                <caption className="sr-only">All vehicle movements</caption>
-                <thead>
-                  <tr className="h-10 border-b border-border text-left text-caption text-muted-foreground">
-                    <th scope="col" className="font-normal">Plate</th>
-                    <th scope="col" className="hidden font-normal @4xl:table-cell">FASTag</th>
-                    <th scope="col" className="hidden font-normal @md:table-cell">Driver</th>
-                    <th scope="col" className="hidden font-normal @2xl:table-cell">Type</th>
-                    <th scope="col" className="hidden font-normal @5xl:table-cell">Transporter</th>
-                    <th scope="col" className="font-normal">Entry</th>
-                    <th scope="col" className="hidden font-normal @xl:table-cell">Exit</th>
-                    <th scope="col" className="font-normal">Status</th>
-                    <th scope="col" className="text-right font-normal">Dwell</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.data.rows.map((m) => (
-                    <tr
-                      key={m.id}
-                      onClick={() => setOpenId(m.id)}
-                      className="h-14 cursor-pointer border-b border-border text-[15px] last:border-b-0 hover:bg-muted"
-                    >
-                      <th scope="row" className="py-1 pr-3 text-left font-normal">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenId(m.id);
-                          }}
-                          className="rounded-field text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                        >
-                          {m.plate || "No plate"}
-                        </button>
-                      </th>
-                      <td className="hidden max-w-36 truncate pr-3 text-caption tabular-nums text-muted-foreground @4xl:table-cell">
-                        {m.fastag || "—"}
-                      </td>
-                      <td className="hidden max-w-36 truncate pr-3 @md:table-cell">{m.driverName}</td>
-                      <td className="hidden pr-3 @2xl:table-cell">{m.vehicleType}</td>
-                      <td className="hidden max-w-36 truncate pr-3 @5xl:table-cell">{m.transporter || "—"}</td>
-                      <td className="pr-3 text-caption tabular-nums text-muted-foreground">
-                        {m.entryAt ? formatStamp(m.entryAt) : "—"}
-                      </td>
-                      <td className="hidden pr-3 text-caption tabular-nums text-muted-foreground @xl:table-cell">
-                        {m.exitAt ? formatStamp(m.exitAt) : "—"}
-                      </td>
-                      <td className="pr-3">
-                        <StatusPill movement={m} />
-                      </td>
-                      <td className="text-right text-caption">
-                        {m.entryAt ? (
-                          <Dwell
-                            ms={(m.exitAt ?? now) - m.entryAt}
-                            open={m.status === "Inside"}
-                          />
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              id="v"
+              caption="All vehicle movements"
+              columns={vehicleColumns(now)}
+              rows={result.data.rows}
+              rowKey={(m) => m.id}
+              minWidth={420}
+              actionLabel={(m) => `Actions for ${m.entryNo}`}
+              actions={(m) => [{ label: "View", icon: EyeIcon, onSelect: () => setOpenId(m.id) }]}
+            />
           )}
         </div>
 
         {result.status === "ready" && result.data.total > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border px-(--card-spacing) pt-4">
-            <p className="text-sm tabular-nums text-muted-foreground">
-              {(result.data.page - 1) * result.data.size + 1}-
-              {Math.min(result.data.page * result.data.size, result.data.total)} of {result.data.total}
-            </p>
-            <div className="flex flex-wrap items-center gap-3">
-              <SelectField
-                id="v-size"
-                label="Rows per page"
-                hideLabel
-                value={String(size)}
-                onChange={(v) => update({ size: v === "25" ? null : v })}
-                options={PAGE_SIZES.map((s) => ({ value: s, label: `${s} per page` }))}
-              />
-              <Button
-                variant="outline"
-                disabled={result.data.page <= 1}
-                onClick={() => update({ page: String(result.data.page - 1) })}
-              >
-                Previous
-              </Button>
-              <span className="text-sm tabular-nums text-muted-foreground">
-                Page {result.data.page} of {result.data.pages}
-              </span>
-              <Button
-                variant="outline"
-                disabled={result.data.page >= result.data.pages}
-                onClick={() => update({ page: String(result.data.page + 1) })}
-              >
-                Next
-              </Button>
-            </div>
+          <div className="px-(--card-spacing)">
+            <TablePager
+              id="v"
+              page={result.data.page}
+              pages={result.data.pages}
+              size={size}
+              total={result.data.total}
+              sizes={PAGE_SIZES}
+              onPage={(n) => update({ page: String(n) })}
+              onSize={(n) => update({ size: n === 25 ? null : String(n) })}
+            />
           </div>
         )}
       </Card>

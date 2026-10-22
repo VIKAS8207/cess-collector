@@ -1,9 +1,10 @@
 "use client";
 
+import { DataTable, TablePager, type Column } from "@/components/ui/data-table";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CalendarIcon, DownloadIcon, HistoryIcon, PrinterIcon, SearchIcon, XIcon } from "lucide-react";
+import { CalendarIcon, DownloadIcon, EyeIcon, HistoryIcon, PrinterIcon, SearchIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -27,11 +28,10 @@ import { formatStamp } from "@/lib/format";
 import { useLiveQuery } from "@/hooks/use-live-query";
 import { useHotkey } from "@/hooks/use-hotkey";
 import { useNow } from "@/hooks/use-now";
-import { cn } from "cn";
 
 const BODY = "min-h-[560px]";
 const DEFAULT_RANGE = "7d";
-const SIZES = ["25", "50", "100"];
+const SIZES = [25, 50, 100];
 const rangeOptions = [
   { value: "today", label: "Today" },
   { value: "7d", label: "Last 7 days" },
@@ -51,6 +51,29 @@ function rangeFor(id: string, now: number, from: string, to: string) {
 }
 
 const typeLabel = (t: ActivityType) => activityTypes.find((x) => x.value === t)?.label ?? t;
+
+const activityColumns: Column<ActivityEvent>[] = [
+  { key: "time", header: "Time", primary: true, cell: (e) => <span className="text-caption tabular-nums">{formatStamp(e.at)}</span> },
+  { key: "role", header: "Role", cell: (e) => <Pill tone={e.role === "admin" ? "danger" : "brand"}>{roleLabel(e.role)}</Pill> },
+  { key: "user", header: "User", hideBelow: "lg", cell: (e) => e.user },
+  { key: "type", header: "Type", hideBelow: "xl", cell: (e) => <Pill tone="neutral">{typeLabel(e.type)}</Pill> },
+  {
+    key: "summary",
+    header: "Summary",
+    className: "max-w-md whitespace-normal py-2 text-foreground",
+    cell: (e) => (
+      <>
+        {e.summary}
+        {e.oldValue || e.newValue ? (
+          <span className="block text-caption text-muted-foreground">
+            {e.oldValue ?? "—"} → {e.newValue ?? "—"}
+          </span>
+        ) : null}
+      </>
+    ),
+  },
+  { key: "ref", header: "Ref", hideBelow: "2xl", cell: (e) => <span className="block max-w-32 truncate text-caption text-muted-foreground">{e.ref}</span> },
+];
 
 export function ActivityPage() {
   const { user } = useAuth();
@@ -73,7 +96,7 @@ export function ActivityPage() {
   const type = activityTypes.find((t) => t.value === params.get("type"))?.value;
   const q = params.get("q") ?? "";
   const page = Math.max(1, Number(params.get("page")) || 1);
-  const size = SIZES.includes(params.get("size") ?? "") ? Number(params.get("size")) : 25;
+  const size = SIZES.includes(Number(params.get("size"))) ? Number(params.get("size")) : 25;
   const [qInput, setQInput] = useState(q);
   const [openEvent, setOpenEvent] = useState<ActivityEvent | null>(null);
 
@@ -212,51 +235,31 @@ export function ActivityPage() {
             <BlockEmpty icon={HistoryIcon} text="No activity in range." actionLabel="Clear filters" onAction={() => { setQInput(""); latest.current = ""; router.replace(pathname, { scroll: false }); }} className={BODY} />
           )}
           {result.status === "ready" && result.data.total > 0 && (
-            <div className={cn(BODY, "@container overflow-x-auto")}>
-              <table className="w-full min-w-[420px] text-[15px]">
-                <caption className="sr-only">Activity across all roles</caption>
-                <thead>
-                  <tr className="h-10 border-b border-border text-left text-caption text-muted-foreground">
-                    <th scope="col" className="font-normal">Time</th>
-                    <th scope="col" className="font-normal">Role</th>
-                    <th scope="col" className="hidden font-normal @lg:table-cell">User</th>
-                    <th scope="col" className="hidden font-normal @xl:table-cell">Type</th>
-                    <th scope="col" className="font-normal">Summary</th>
-                    <th scope="col" className="hidden font-normal @2xl:table-cell">Ref</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.data.rows.map((e) => (
-                    <tr key={e.id} onClick={() => setOpenEvent(e)} className="cursor-pointer border-b border-border align-top hover:bg-muted">
-                      <th scope="row" className="py-3 pr-3 text-left font-normal">
-                        <button type="button" onClick={(ev) => { ev.stopPropagation(); setOpenEvent(e); }} className="rounded-field text-left text-caption tabular-nums outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-                          {formatStamp(e.at)}
-                        </button>
-                      </th>
-                      <td className="py-3 pr-3"><Pill tone={e.role === "admin" ? "danger" : "brand"}>{roleLabel(e.role)}</Pill></td>
-                      <td className="hidden py-3 pr-3 @lg:table-cell">{e.user}</td>
-                      <td className="hidden py-3 pr-3 @xl:table-cell"><Pill tone="neutral">{typeLabel(e.type)}</Pill></td>
-                      <td className="max-w-md py-3 pr-3 text-foreground">{e.summary}{e.oldValue || e.newValue ? <span className="block text-caption text-muted-foreground">{e.oldValue ?? "—"} → {e.newValue ?? "—"}</span> : null}</td>
-                      <td className="hidden max-w-32 truncate py-3 text-caption text-muted-foreground @2xl:table-cell">{e.ref}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              id="ac"
+              caption="Activity across all roles"
+              columns={activityColumns}
+              rows={result.data.rows}
+              rowKey={(e) => e.id}
+              minWidth={420}
+              actionLabel={(e) => `Actions for ${e.summary}`}
+              actions={(e) => [{ label: "View", icon: EyeIcon, onSelect: () => setOpenEvent(e) }]}
+            />
           )}
         </div>
 
         {result.status === "ready" && result.data.total > 0 && (
-          <div data-print-hide className="flex flex-wrap items-center justify-between gap-4 border-t border-border px-(--card-spacing) pt-4">
-            <p className="text-sm tabular-nums text-muted-foreground">
-              {(result.data.page - 1) * result.data.size + 1}-{Math.min(result.data.page * result.data.size, result.data.total)} of {result.data.total}
-            </p>
-            <div className="flex flex-wrap items-center gap-3">
-              <SelectField id="ac-size" label="Rows per page" hideLabel value={String(size)} onChange={(v) => update({ size: v === "25" ? null : v })} options={SIZES.map((s) => ({ value: s, label: `${s} per page` }))} />
-              <Button variant="outline" disabled={result.data.page <= 1} onClick={() => update({ page: String(result.data.page - 1) })}>Previous</Button>
-              <span className="text-sm tabular-nums text-muted-foreground">Page {result.data.page} of {result.data.pages}</span>
-              <Button variant="outline" disabled={result.data.page >= result.data.pages} onClick={() => update({ page: String(result.data.page + 1) })}>Next</Button>
-            </div>
+          <div data-print-hide className="px-(--card-spacing)">
+            <TablePager
+              id="ac"
+              page={result.data.page}
+              pages={result.data.pages}
+              size={size}
+              total={result.data.total}
+              sizes={SIZES}
+              onPage={(n) => update({ page: String(n) })}
+              onSize={(n) => update({ size: n === 25 ? null : String(n) })}
+            />
           </div>
         )}
       </Card>

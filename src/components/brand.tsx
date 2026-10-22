@@ -25,7 +25,7 @@ export function Brand({ showName = true }: { showName?: boolean }) {
       <BrandMark />
       {showName && (
         <span className="text-[17px] tracking-[-0.2px] text-foreground">
-          SAAS Collector
+          CESS Collector
         </span>
       )}
     </span>

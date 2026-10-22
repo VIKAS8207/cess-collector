@@ -2,6 +2,7 @@ import { startOfDay } from "./seed";
 import { DAY, GATE, HOUR, MINUTE, type Movement } from "./types";
 import type {
   AgentData,
+  Allocation,
   AgentEvent,
   CommissionSetting,
   Party,
@@ -250,5 +251,55 @@ export function buildAgentSeed(movements: Movement[], now: number): AgentData {
   });
 
   events.sort((a, b) => b.at - a.at);
-  return { parties: [...traders, ...sellers], receipts, sales, returns, payments, events };
+
+  // A few allocations from trucks that have been through the gate, so the list is not empty.
+  const allocations: Allocation[] = [];
+  const insideNow = movements.filter((m) => m.status === "Inside" && m.plate && m.weighments?.length);
+  const past = movements.filter((m) => m.status === "Exited" && m.plate && m.weighments?.length).slice(0, 6);
+  const inScope = [...insideNow, ...past];
+  inScope.forEach((m, i) => {
+    const product = m.weighments?.[0]?.product ?? pick(["Basmati rice", "Wheat", "Sugar", "Onion", "Toor dal"]);
+    const unit: Allocation["unit"] = product === "Onion" ? "kg" : "bags";
+    const shared = i % 2 === 0 ? 2 : 3;
+    for (let k = 0; k < shared; k++) {
+      const t = traders[(i + k * 3) % traders.length];
+      const qty = int(40, 300);
+      const rate = unit === "kg" ? int(18, 40) : int(900, 3200);
+      const amount = Math.round(qty * rate * 100) / 100;
+      const at = (m.entryAt ?? now) + (30 + k * 5) * 60_000;
+      allocations.push({
+        id: `al-seed-${i}-${k}`,
+        no: `AL-${1000 + allocations.length + 1}`,
+        movementId: m.id,
+        plate: m.plate,
+        driverName: m.driverName,
+        product,
+        unit,
+        qty,
+        rate,
+        amount,
+        cess: Math.round(amount * 2) / 100,
+        cessLabel: "2% of value",
+        partyId: t.id,
+        partyName: t.name,
+        at: Math.min(at, now),
+        agent: "Ravi Kumar",
+        supplier: sellers[i % sellers.length].name,
+        origin: pick(["Nashik", "Pune", "Indore", "Latur", "Sangli"]),
+        challanNo: `CH-${digits(5)}`,
+        bridgeNetKg: m.weighments?.length === 2 ? m.weighments[1].kg - m.weighments[0].kg : null,
+        billNo: `BL-${digits(5)}`,
+        traderLicence: `LIC-${digits(6)}`,
+        traderGstin: "",
+        cessPaid: k === 0 && i % 2 === 0 ? 0 : Math.round(amount * 2) / 100,
+        cessStatus: k === 0 && i % 2 === 0 ? "pending" : "collected",
+        cessMode: k === 0 && i % 2 === 0 ? undefined : pick(["cash", "upi", "bank"] as const),
+        cessRef: "",
+        cessReceiptNo: k === 0 && i % 2 === 0 ? "" : `CR-${1000 + allocations.length + 1}`,
+        cessReceivedBy: k === 0 && i % 2 === 0 ? "" : "Ravi Kumar",
+      });
+    }
+  });
+  allocations.sort((a, b) => b.at - a.at);
+  return { parties: [...traders, ...sellers], receipts, sales, returns, payments, events, allocations };
 }

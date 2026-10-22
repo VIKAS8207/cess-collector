@@ -32,7 +32,7 @@ export function Topbar({
   // Ctrl/Cmd+K focuses search (opens the compact search on small screens).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() !== "k" || !(e.metaKey || e.ctrlKey)) return;
+      if (e.key?.toLowerCase() !== "k" || !(e.metaKey || e.ctrlKey)) return;
       e.preventDefault();
       if (window.matchMedia("(min-width: 768px)").matches) {
         desktopSearch.current?.focus();
@@ -101,7 +101,7 @@ export function Topbar({
           </nav>
         ) : (
           <p className="truncate text-[17px] tracking-[-0.2px] text-foreground">
-            {page?.item.label ?? "SAAS Collector"}
+            {page?.item.label ?? "CESS Collector"}
           </p>
         )}
 

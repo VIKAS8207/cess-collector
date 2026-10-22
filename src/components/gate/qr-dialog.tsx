@@ -1,9 +1,9 @@
 "use client";
 
 import { Dialog } from "@base-ui/react/dialog";
-import { DownloadIcon } from "lucide-react";
+import { DownloadIcon, PrinterIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { downloadQrPng, QrCode, qrPayload } from "@/components/gate/qr-code";
+import { downloadQrPng, printQr, QrCode, qrPayload } from "@/components/gate/qr-code";
 import { getMovement, useStoreVersion } from "@/lib/domain/store";
 import { formatStamp } from "@/lib/format";
 
@@ -15,6 +15,7 @@ export function QrDialog({ id, onClose }: { id: string | null; onClose: () => vo
   useStoreVersion();
   const m = id ? getMovement(id) : undefined;
   const value = m ? qrPayload(m) : "";
+  const closed = m?.status === "Exited";
 
   return (
     <Dialog.Root open={!!m} onOpenChange={(o) => !o && onClose()}>
@@ -27,12 +28,14 @@ export function QrDialog({ id, onClose }: { id: string | null; onClose: () => vo
           {m && (
             <>
               <div className="flex flex-col gap-1">
-                <Dialog.Title className="text-heading-lg text-foreground">Entry QR code</Dialog.Title>
+                <Dialog.Title className="text-heading-lg text-foreground">{closed ? "QR code closed" : "Entry QR code"}</Dialog.Title>
                 <Dialog.Description className="text-sm text-muted-foreground">
-                  Scan this at the exit gate to find the entry.
+                  {closed ? "This truck has left, so its QR code can no longer be used." : "Scan this at the exit gate to find the entry."}
                 </Dialog.Description>
               </div>
-              <QrCode value={value} size={232} label={`QR code for entry ${m.entryNo}`} />
+              <div className={closed ? "relative opacity-30 grayscale" : undefined}>
+                <QrCode value={value} size={232} label={`QR code for entry ${m.entryNo}`} />
+              </div>
               <dl className="grid w-full grid-cols-2 gap-x-4 gap-y-2 text-left text-sm">
                 <div>
                   <dt className="text-caption text-muted-foreground">Entry no</dt>
@@ -50,11 +53,32 @@ export function QrDialog({ id, onClose }: { id: string | null; onClose: () => vo
                   <dt className="text-caption text-muted-foreground">Entry time</dt>
                   <dd className="tabular-nums text-foreground">{m.entryAt ? formatStamp(m.entryAt) : "—"}</dd>
                 </div>
+                {closed && m.exitAt && (
+                  <div>
+                    <dt className="text-caption text-muted-foreground">Closed at exit</dt>
+                    <dd className="tabular-nums text-foreground">{formatStamp(m.exitAt)}</dd>
+                  </div>
+                )}
               </dl>
               <div className="flex w-full flex-wrap justify-center gap-3">
-                <Button variant="outline" onClick={() => downloadQrPng(value, `${m.entryNo}-qr.png`)}>
+                <Button variant="outline" disabled={closed} onClick={() => downloadQrPng(value, `${m.entryNo}-qr.png`)}>
                   <DownloadIcon aria-hidden="true" />
                   Download
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={closed}
+                  onClick={() =>
+                    printQr(value, [
+                      { label: "Entry no", value: m.entryNo },
+                      { label: "Plate", value: m.plate || "No plate" },
+                      { label: "Driver", value: m.driverName },
+                      { label: "Entry time", value: m.entryAt ? formatStamp(m.entryAt) : "" },
+                    ])
+                  }
+                >
+                  <PrinterIcon aria-hidden="true" />
+                  Print
                 </Button>
                 <Dialog.Close render={<Button />}>Done</Dialog.Close>
               </div>

@@ -15,7 +15,7 @@ export function useHotkey(key: string, handler: () => void, enabled = true) {
   useEffect(() => {
     if (!enabled) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() !== key.toLowerCase()) return;
+      if (e.key?.toLowerCase() !== key.toLowerCase()) return;
       if (e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target)) return;
       if (document.querySelector('[role="dialog"]')) return;
       e.preventDefault();

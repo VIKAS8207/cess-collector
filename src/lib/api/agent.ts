@@ -22,6 +22,10 @@ import {
 } from "@/lib/domain/agent-types";
 import {
   allAgentEvents,
+  allAllocations,
+  allocationsFor,
+  createAllocations,
+  type AllocationInput,
   allParties,
   allPayments,
   allReceipts,
@@ -480,4 +484,23 @@ export function getAgentReport(
     const row = (party: Party): PartyRow => ({ party, count: 0, value: 0, returns: 0, commission: 0, paid: 0, net: 0, balance: partyBalance(party.id), overdue: party.kind === "trader" && isOverdue(party.id, now) });
     return { kind, traders: traders().map(row), sellers: sellers().map(row) };
   });
+}
+
+// ---------- allocations to traders ----------
+
+export function getAllocations(opts?: Opts) {
+  return sim(opts, () => [...allAllocations()].sort((a, b) => b.at - a.at).slice(0, 300));
+}
+
+export function getVehicleAllocations(movementId: string) {
+  return allocationsFor(movementId);
+}
+
+export async function submitAllocations(input: AllocationInput, by: string) {
+  await delay();
+  return createAllocations(input, by);
+}
+
+export function activeTraders() {
+  return traders().filter((t) => t.active !== false);
 }

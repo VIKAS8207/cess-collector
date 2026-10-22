@@ -1,8 +1,9 @@
 "use client";
 
+import { DataTable, type Column } from "@/components/ui/data-table";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { InfoIcon, QrCodeIcon, ScanLineIcon, TruckIcon } from "lucide-react";
+import { EyeIcon, InfoIcon, LogOutIcon, QrCodeIcon, ScanLineIcon, TruckIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,14 +20,25 @@ import { useToast } from "@/components/gate/toast";
 import { QrScanner } from "@/components/gate-exit/qr-scanner";
 import { useAuth } from "@/lib/auth-store";
 import { forcedErrors, getInside, lookupScan, submitExit, submitFlag, type ScanLookup } from "@/lib/api/gate";
-import type { Movement } from "@/lib/domain/types";
+import { allocationsFor } from "@/lib/domain/agent-store";
+import { formatQty } from "@/lib/format";
+import { stageLabel, weighSummary, type Movement } from "@/lib/domain/types";
 import { formatDate, formatDuration, formatStamp, formatTime } from "@/lib/format";
 import { useLiveQuery } from "@/hooks/use-live-query";
 import { useNow } from "@/hooks/use-now";
 import { useHotkey } from "@/hooks/use-hotkey";
-import { cn } from "cn";
 
 type View = "scan" | "table";
+
+const insideColumns = (now: number | null): Column<Movement>[] => [
+  { key: "plate", header: "Vehicle", primary: true, cell: (v) => v.plate || "No plate" },
+  { key: "no", header: "Entry no", cell: (v) => <span className="tabular-nums text-muted-foreground">{v.entryNo}</span> },
+  { key: "driver", header: "Driver", cell: (v) => v.driverName },
+  { key: "type", header: "Type", cell: (v) => v.vehicleType },
+  { key: "entry", header: "Entry", cell: (v) => <span className="text-caption tabular-nums text-muted-foreground">{formatTime(v.entryAt!)}</span> },
+  { key: "dwell", header: "Dwell", cell: (v) => <span className="text-caption"><Dwell ms={now ? now - v.entryAt! : null} /></span> },
+  { key: "status", header: "Status", cell: (v) => <StatusPill movement={v} /> },
+];
 
 const BODY = "h-[520px]";
 
@@ -35,6 +47,73 @@ function Fact({ label, value }: { label: string; value: React.ReactNode }) {
     <div>
       <dt className="text-caption text-muted-foreground">{label}</dt>
       <dd className="text-[15px] wrap-break-word text-foreground">{value || "—"}</dd>
+    </div>
+  );
+}
+
+/** What the truck did while inside: its weighings and which traders took its goods. No money is shown here. */
+function TruckRecord({ movement }: { movement: Movement }) {
+  const w = weighSummary(movement);
+  const given = allocationsFor(movement.id);
+  const photos = (movement.weighments ?? []).filter((x) => x.photo);
+  return (
+    <div className="flex flex-col gap-5">
+      <section aria-label="Weighing" className="flex flex-col gap-3 rounded-card border border-border p-4">
+        <h3 className="text-[15px] text-foreground">Weighing</h3>
+        {movement.weighments?.length ? (
+          <>
+            <dl className="grid gap-4 sm:grid-cols-4">
+              <Fact label="Product" value={w.product} />
+              <Fact label="Gross" value={w.gross ? <span className="tabular-nums">{w.gross.kg.toLocaleString("en-IN")} kg</span> : "Not taken"} />
+              <Fact label="Tare" value={w.tare ? <span className="tabular-nums">{w.tare.kg.toLocaleString("en-IN")} kg</span> : "Not taken"} />
+              <Fact label="Net goods" value={w.net !== null ? <span className="tabular-nums">{w.net.toLocaleString("en-IN")} kg</span> : "—"} />
+            </dl>
+            {photos.length > 0 && (
+              <div className="flex flex-wrap gap-3">
+                {photos.map((x) => (
+                  <figure key={x.stage} className="flex flex-col gap-1">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={x.photo} alt={`${stageLabel[x.stage]} weighing photo`} className="aspect-8/5 w-32 rounded-field border border-border object-cover" />
+                    <figcaption className="text-caption text-muted-foreground">{stageLabel[x.stage]} photo</figcaption>
+                  </figure>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">This truck was not weighed.</p>
+        )}
+      </section>
+
+      <section aria-label="Goods given to traders" className="flex flex-col gap-3 rounded-card border border-border p-4">
+        <h3 className="text-[15px] text-foreground">Goods given to traders</h3>
+        {given.length > 0 ? (
+          <>
+            <dl className="grid gap-4 sm:grid-cols-3">
+              <Fact label="Supplier" value={given[0].supplier} />
+              <Fact label="Origin" value={given[0].origin} />
+              <Fact label="Seller challan" value={given[0].challanNo} />
+            </dl>
+            <ul className="flex flex-col">
+              {[...given].reverse().map((a) => (
+                <li key={a.id} className="flex items-baseline justify-between gap-3 border-b border-border py-2 last:border-b-0">
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate text-[15px] text-foreground">{a.partyName}</span>
+                    <span className="text-caption text-muted-foreground">
+                      {a.no} · Bill {a.billNo}
+                    </span>
+                  </span>
+                  <span className="text-right text-[15px] tabular-nums text-foreground">
+                    {formatQty(a.qty)} {a.unit} <span className="text-muted-foreground">{a.product}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">No goods have been given to traders from this truck yet.</p>
+        )}
+      </section>
     </div>
   );
 }
@@ -107,7 +186,7 @@ export function ExitPage() {
     setApproving(true);
     const done = await submitExit(result.movement.id, operator);
     setApproving(false);
-    if (done) toast.push(`Exit approved for ${done.plate || done.fastag}.`);
+    if (done) toast.push(`Exit approved for ${done.plate || done.fastag}. Its QR code is now closed.`);
     else toast.push("This vehicle is no longer inside.", "error");
     scanAnother();
   };
@@ -229,7 +308,7 @@ export function ExitPage() {
                 <p className="flex items-start gap-2 text-[15px] text-foreground">
                   <InfoIcon aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-primary" />
                   {m.plate || m.fastag} already exited on {formatDate(m.exitAt!)} at {formatTime(m.exitAt!)}, after{" "}
-                  {formatDuration(m.exitAt! - m.entryAt!)}.
+                  {formatDuration(m.exitAt! - m.entryAt!)}. This QR code is closed and cannot be used again.
                 </p>
                 <div>
                   <Button variant="outline" onClick={scanAnother}>
@@ -250,16 +329,15 @@ export function ExitPage() {
                 </div>
                 <dl className="grid gap-4 sm:grid-cols-2">
                   <Fact label="Driver" value={m.driverName} />
-                  <Fact label="Driver phone" value={<span className="tabular-nums">{m.driverPhone}</span>} />
                   <Fact label="FASTag" value={<span className="tabular-nums">{m.fastag || "No FASTag"}</span>} />
                   <Fact label="Vehicle type" value={m.vehicleType} />
                   <Fact label="Transporter" value={m.transporter} />
                   <Fact label="Purpose" value={m.purpose} />
-                  <Fact label="Reference" value={m.reference} />
                   <Fact label="Entered by" value={`${m.operator} · ${m.gate}`} />
                   <Fact label="Entry time" value={<span className="tabular-nums">{formatStamp(m.entryAt!)}</span>} />
                   <Fact label="Time inside" value={<Dwell ms={now ? now - m.entryAt! : null} />} />
                 </dl>
+                <TruckRecord movement={m} />
                 <div className="flex flex-wrap items-center gap-3">
                   <Button size="lg" onClick={confirm} disabled={approving} aria-busy={approving}>
                     {approving && <Spinner />}
@@ -269,7 +347,7 @@ export function ExitPage() {
                     Scan another
                   </Button>
                 </div>
-                <p className="text-caption text-muted-foreground">The exit time and your name are stamped automatically.</p>
+                <p className="text-caption text-muted-foreground">The exit time and your name are stamped automatically. Confirming closes this truck&apos;s QR code.</p>
               </div>
             )}
           </div>
@@ -304,52 +382,19 @@ export function ExitPage() {
               <BlockEmpty icon={TruckIcon} text="No vehicles inside." actionLabel="Scan QR" onAction={scanAnother} className={BODY} />
             )}
             {inside.status === "ready" && all.length > 0 && (
-              <div className={cn(BODY, "overflow-auto")}>
-                <table className="w-full min-w-205 text-[15px]">
-                  <caption className="sr-only">Vehicles currently inside</caption>
-                  <thead>
-                    <tr className="h-10 border-b border-border text-left text-caption text-muted-foreground">
-                      <th scope="col" className="pr-4 font-normal">Vehicle</th>
-                      <th scope="col" className="pr-4 font-normal">Entry no</th>
-                      <th scope="col" className="pr-4 font-normal">Driver</th>
-                      <th scope="col" className="pr-4 font-normal">Type</th>
-                      <th scope="col" className="pr-4 font-normal">Entry</th>
-                      <th scope="col" className="pr-4 font-normal">Dwell</th>
-                      <th scope="col" className="font-normal">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...all]
-                      .sort((a, b) => a.entryAt! - b.entryAt!)
-                      .map((v: Movement) => (
-                        <tr key={v.id} onClick={() => setOpenId(v.id)} className="h-14 cursor-pointer border-b border-border last:border-b-0 hover:bg-muted">
-                          <th scope="row" className="pr-4 text-left font-normal">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenId(v.id);
-                              }}
-                              className="rounded-field text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                            >
-                              {v.plate || "No plate"}
-                            </button>
-                          </th>
-                          <td className="pr-4 tabular-nums text-muted-foreground">{v.entryNo}</td>
-                          <td className="pr-4">{v.driverName}</td>
-                          <td className="pr-4">{v.vehicleType}</td>
-                          <td className="pr-4 text-caption tabular-nums text-muted-foreground">{formatTime(v.entryAt!)}</td>
-                          <td className="pr-4 text-caption">
-                            <Dwell ms={now ? now - v.entryAt! : null} />
-                          </td>
-                          <td>
-                            <StatusPill movement={v} />
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                id="gx"
+                caption="Vehicles currently inside"
+                columns={insideColumns(now)}
+                rows={[...all].sort((a, b) => a.entryAt! - b.entryAt!)}
+                rowKey={(v) => v.id}
+                pageSize={10}
+                actionLabel={(v) => `Actions for ${v.entryNo}`}
+                actions={(v) => [
+                  { label: "View", icon: EyeIcon, onSelect: () => setOpenId(v.id) },
+                  { label: "Exit", icon: LogOutIcon, onSelect: () => void run(v.plate || v.fastag) },
+                ]}
+              />
             )}
           </div>
         </Card>

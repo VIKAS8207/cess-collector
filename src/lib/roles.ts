@@ -3,6 +3,7 @@ import { createStore } from "@/lib/storage-store";
 export const roles = [
   { id: "gate_operator", label: "Gate operator" },
   { id: "commission_agent", label: "Commission agent" },
+  { id: "weighbridge_operator", label: "Weight bridge operator" },
   { id: "trader", label: "Trader" },
   { id: "admin", label: "Admin" },
 ] as const;

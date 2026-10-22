@@ -68,9 +68,9 @@ export function AgentDashboard() {
               onChange={(v) => setPreset(v as RangePreset)}
               options={rangePresets.map((r) => ({ value: r.id, label: r.label }))}
             />
-            <Link href="/receive-goods?new=1" className={buttonVariants()}>
+            <Link href="/allocations" className={buttonVariants()}>
               <PlusIcon aria-hidden="true" />
-              Receive goods
+              Allocate to traders
             </Link>
           </>
         }
@@ -93,7 +93,7 @@ export function AgentDashboard() {
           query={recent}
           onOpen={(e) => {
             if (e.receiptId) setOpenId(e.receiptId);
-            else if (e.partyId) router.push(`/settlements?party=${e.partyId}`);
+            else if (e.kind === "allocated") router.push("/allocations");
             else if (e.saleId && getSale(e.saleId)) router.push(`/sales?q=${getSale(e.saleId)!.no}`);
           }}
         />

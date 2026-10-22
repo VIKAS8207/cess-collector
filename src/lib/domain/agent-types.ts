@@ -123,7 +123,54 @@ export type Payment = {
   by: string;
 };
 
-export type AgentEventKind = "received" | "sold" | "returned" | "paid" | "blocked";
+export type CessStatus = "collected" | "part" | "pending";
+export const cessStatusLabel: Record<CessStatus, string> = { collected: "Collected", part: "Part paid", pending: "Pending" };
+
+/** Goods from one truck handed to one trader. A truck can have several of these. */
+export type Allocation = {
+  id: string;
+  no: string;
+  movementId: string;
+  plate: string;
+  driverName: string;
+  product: string;
+  unit: Unit;
+  qty: number;
+  rate: number;
+  amount: number;
+  /** CESS collected on this allocation, from the admin rate at the time. */
+  cess: number;
+  cessLabel: string;
+  partyId: string;
+  partyName: string;
+  /** Photo of the truck's product, taken once per truck visit. */
+  photo?: string;
+  at: number;
+  agent: string;
+  // ---- consignment (once per truck)
+  /** Farmer or consignor the goods came from. */
+  supplier: string;
+  origin: string;
+  /** Seller's challan or invoice number. */
+  challanNo: string;
+  /** Net weight on the weight bridge when the truck was allocated, if it was weighed. */
+  bridgeNetKg: number | null;
+  // ---- buyer (per trader)
+  /** Purchase voucher or bill number for this trader's share. */
+  billNo: string;
+  traderLicence: string;
+  traderGstin: string;
+  // ---- CESS collection
+  cessPaid: number;
+  cessStatus: CessStatus;
+  cessMode?: PayMode;
+  cessRef: string;
+  /** Set once any CESS has been received. */
+  cessReceiptNo: string;
+  cessReceivedBy: string;
+};
+
+export type AgentEventKind = "received" | "sold" | "returned" | "paid" | "blocked" | "allocated";
 export type AgentEvent = {
   id: string;
   kind: AgentEventKind;
@@ -141,6 +188,7 @@ export type AgentData = {
   returns: Return[];
   payments: Payment[];
   events: AgentEvent[];
+  allocations: Allocation[];
 };
 
 export type LineStock = {

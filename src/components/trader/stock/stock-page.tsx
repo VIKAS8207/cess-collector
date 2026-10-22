@@ -1,7 +1,9 @@
 "use client";
 
+import type { StockLine } from "@/lib/domain/trader-types";
+import { DataTable, type Column } from "@/components/ui/data-table";
 import { useRef, useState } from "react";
-import { BoxesIcon, PlusIcon, SearchIcon } from "lucide-react";
+import { BoxesIcon, EyeIcon, PlusIcon, SearchIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,7 +22,6 @@ import { forcedErrors } from "@/lib/api/gate";
 import { formatDate, formatInr, formatQty } from "@/lib/format";
 import { useLiveQuery } from "@/hooks/use-live-query";
 import { useHotkey } from "@/hooks/use-hotkey";
-import { cn } from "cn";
 
 type Source = "all" | "agent" | "manual";
 type Status = "all" | "Remaining" | "Fully sold" | "Wastage";
@@ -36,6 +37,38 @@ const statusOptions = [
   { value: "Fully sold", label: "Fully sold" },
   { value: "Wastage", label: "Wastage flagged" },
 ] as const;
+
+const stockColumns: Column<StockLine>[] = [
+  {
+    key: "item",
+    header: "Item",
+    primary: true,
+    cell: (x) => (
+      <span className="flex flex-col">
+        <span>{x.item}</span>
+        <span className="text-caption text-muted-foreground">{x.unit}</span>
+      </span>
+    ),
+  },
+  { key: "qty", header: "Purchased", align: "right", hideBelow: "lg", cell: (x) => `${formatQty(x.qty)} ${x.unit}` },
+  { key: "rate", header: "Rate", align: "right", hideBelow: "2xl", cell: (x) => formatInr(x.rate) },
+  { key: "remaining", header: "Remaining", align: "right", cell: (x) => <span className="text-foreground">{formatQty(x.remaining)} {x.unit}</span> },
+  {
+    key: "source",
+    header: "Source",
+    hideBelow: "xl",
+    cell: (x) =>
+      x.source.kind === "agent" ? (
+        <Pill tone="brand" title={`${x.source.agentName} · ${x.source.saleNo}`}>
+          Agent · {x.source.agentName.split(" ")[0]}
+        </Pill>
+      ) : (
+        <Pill tone="neutral" title={x.source.seller}>Manual</Pill>
+      ),
+  },
+  { key: "date", header: "Date", hideBelow: "2xl", cell: (x) => <span className="text-caption tabular-nums text-muted-foreground">{formatDate(x.date)}</span> },
+  { key: "status", header: "Status", cell: (x) => <StockPills line={x} /> },
+];
 
 const BODY = "h-[520px]";
 
@@ -125,59 +158,18 @@ export function StockPage() {
             />
           )}
           {list.status === "ready" && rows.length > 0 && (
-            <div className={cn(BODY, "@container overflow-auto")}>
-              <table className="w-full min-w-[420px] text-[15px]">
-                <caption className="sr-only">Stock lines</caption>
-                <thead>
-                  <tr className="h-10 border-b border-border text-left text-caption text-muted-foreground">
-                    <th scope="col" className="font-normal">Item</th>
-                    <th scope="col" className="hidden text-right font-normal @lg:table-cell">Purchased</th>
-                    <th scope="col" className="hidden text-right font-normal @2xl:table-cell">Rate</th>
-                    <th scope="col" className="text-right font-normal">Remaining</th>
-                    <th scope="col" className="hidden pl-4 font-normal @xl:table-cell">Source</th>
-                    <th scope="col" className="hidden pl-4 font-normal @3xl:table-cell">Date</th>
-                    <th scope="col" className="pl-4 font-normal">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((s) => (
-                    <tr
-                      key={s.id}
-                      onClick={() => setOpenId(s.id)}
-                      className={cn("cursor-pointer border-b border-border transition-colors duration-700 last:border-b-0 hover:bg-muted", highlight === s.id && "bg-tag/40")}
-                    >
-                      <th scope="row" className="py-3 pr-3 text-left font-normal">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenId(s.id);
-                          }}
-                          className="flex flex-col rounded-field text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                        >
-                          <span>{s.item}</span>
-                          <span className="text-caption text-muted-foreground">{s.unit}</span>
-                        </button>
-                      </th>
-                      <td className="hidden text-right tabular-nums @lg:table-cell">{formatQty(s.qty)} {s.unit}</td>
-                      <td className="hidden text-right tabular-nums @2xl:table-cell">{formatInr(s.rate)}</td>
-                      <td className="text-right tabular-nums text-foreground">{formatQty(s.remaining)} {s.unit}</td>
-                      <td className="hidden pl-4 @xl:table-cell">
-                        {s.source.kind === "agent" ? (
-                          <Pill tone="brand" title={`${s.source.agentName} · ${s.source.saleNo}`}>
-                            Agent · {s.source.agentName.split(" ")[0]}
-                          </Pill>
-                        ) : (
-                          <Pill tone="neutral" title={s.source.seller}>Manual</Pill>
-                        )}
-                      </td>
-                      <td className="hidden pl-4 text-caption tabular-nums text-muted-foreground @3xl:table-cell">{formatDate(s.date)}</td>
-                      <td className="pl-4"><StockPills line={s} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              id="ts"
+              caption="Stock lines"
+              columns={stockColumns}
+              rows={rows}
+              rowKey={(x) => x.id}
+              highlightId={highlight}
+              pageSize={10}
+              minWidth={420}
+              actionLabel={(x) => `Actions for ${x.item}`}
+              actions={(x) => [{ label: "View", icon: EyeIcon, onSelect: () => setOpenId(x.id) }]}
+            />
           )}
         </div>
       </Card>

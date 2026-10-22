@@ -56,6 +56,7 @@ function ad(): AdminData {
     mk("Avery Morgan", "avery.morgan@company.com", "gate_operator", "active", 80, 5 * hour),
     mk("Meera Shah", "meera.shah@company.com", "gate_operator", "active", 70, 30 * hour),
     mk("Kabir Anand", "kabir.anand@company.com", "gate_operator", "inactive", 60, 12 * DAY),
+    mk("Sanjay Verma", "sanjay.verma@company.com", "weighbridge_operator", "active", 65, 6 * hour),
     mk("Ravi Kumar", "ravi.kumar@company.com", "commission_agent", "active", 75, 3 * hour),
     mk("Imran Khan", "imran.khan@company.com", "commission_agent", "active", 40, 2 * DAY),
     mk("Tara Shah", "tara.shah@company.com", "trader", "active", 50, 1 * hour),
@@ -77,7 +78,7 @@ function ad(): AdminData {
     item("Toor dal", "bags"),
     item("Maize", "tonnes"),
     ...["Truck", "Trailer", "Tanker", "Container", "Pickup"].map((l) => simple("vehicleTypes", l)),
-    ...["Delivery", "Pickup", "Transfer", "Service"].map((l) => simple("purposes", l)),
+    ...["Loading", "Unloading"].map((l) => simple("purposes", l)),
     simple("paymentModes", "Cash", "cash"),
     simple("paymentModes", "UPI", "upi"),
     simple("paymentModes", "Bank transfer", "bank"),
@@ -456,7 +457,7 @@ export function activityEvents(now: number): ActivityEvent[] {
       push({ id: `${m.id}-out`, at: m.exitAt, role: "gate_operator", user: m.exitOperator ?? m.operator, type: "gate_exit", summary: `Exit ${m.plate || m.fastag} approved`, ref: m.plate || m.fastag, payload: [["Entry no", m.entryNo], ["Plate", m.plate], ["Driver", m.driverName], ["Gate", m.gate]] });
     }
     for (const [i, w] of (m.weighments ?? []).entries()) {
-      push({ id: `${m.id}-w${i}`, at: w.at, role: "gate_operator", user: w.by, type: "weighment", summary: `Weighed ${m.plate || m.fastag}: ${w.kg.toLocaleString("en-IN")} kg`, ref: m.plate || m.fastag, payload: [["Entry no", m.entryNo], ["Plate", m.plate], ["Weight", `${w.kg} kg`], ["Source", w.source === "bridge" ? "Weight bridge" : "Typed in"]] });
+      push({ id: `${m.id}-w${i}`, at: w.at, role: "weighbridge_operator", user: w.by, type: "weighment", summary: `${w.stage === "gross" ? "Gross" : "Tare"} weighed ${m.plate || m.fastag}: ${w.kg.toLocaleString("en-IN")} kg`, ref: m.plate || m.fastag, payload: [["Entry no", m.entryNo], ["Plate", m.plate], ["Stage", w.stage === "gross" ? "Gross" : "Tare"], ["Product", w.product], ["Weight", `${w.kg} kg`], ["Source", w.source === "bridge" ? "Weight bridge" : "Typed in"]] });
     }
     if (m.status === "Flagged" && m.flag) {
       push({ id: `${m.id}-flag`, at: m.flag.at, role: "gate_operator", user: m.operator, type: "gate_exit", summary: `Exit without entry flagged ${m.plate || m.fastag}`, ref: m.plate || m.fastag, payload: [["Reason", m.flag.reason], ["Plate", m.plate]] });
@@ -464,6 +465,9 @@ export function activityEvents(now: number): ActivityEvent[] {
   }
   for (const r of s.agent.receipts) {
     push({ id: r.id, at: r.receivedAt, role: "commission_agent", user: r.agent, type: "receipt", summary: `Receipt ${r.no} · ${r.plate || "vehicle"} · ${r.lines.map((l) => l.item).join(", ")}`, ref: r.no, payload: [["Receipt", r.no], ["Plate", r.plate], ["Lines", r.lines.map((l) => `${l.item} ${l.actual} ${l.unit}`).join("; ")], ["Mismatch", r.mismatch ? "Yes" : "No"]] });
+  }
+  for (const x of db().agent.allocations) {
+    push({ id: x.id, at: x.at, role: "commission_agent", user: x.agent, type: "allocation", summary: `Allocation ${x.no} · ${x.plate || "truck"} to ${x.partyName} · ${x.qty} ${x.unit} ${x.product} · ₹${Math.round(x.amount).toLocaleString("en-IN")}`, ref: x.no, payload: [["Allocation", x.no], ["Plate", x.plate], ["Product", x.product], ["Trader", x.partyName], ["Quantity", `${x.qty} ${x.unit}`], ["Rate", `₹${x.rate}`], ["Amount", `₹${x.amount}`], ["Supplier", x.supplier], ["Origin", x.origin], ["Challan", x.challanNo], ["Bill", x.billNo], ["Trader licence", x.traderLicence], ["Trader GSTIN", x.traderGstin], ["CESS", `₹${x.cess} (${x.cessLabel})`], ["CESS received", `₹${x.cessPaid} · ${x.cessStatus}`], ["CESS receipt", x.cessReceiptNo], ["CESS mode", x.cessMode ?? ""], ["CESS reference", x.cessRef]] });
   }
   for (const x of s.agent.sales) {
     const total = x.lines.reduce((a, l) => a + l.amount, 0);

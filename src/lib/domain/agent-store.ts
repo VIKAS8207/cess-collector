@@ -1,10 +1,13 @@
 import { commit, db, getMovement } from "./store";
 import { overdueDays } from "./settings";
-import { commissionFor } from "./agent-math";
+import { cessFor, commissionFor } from "./agent-math";
+import { saasSettings } from "./settings";
 import { DAY } from "./types";
 import {
   type AgentEvent,
+  type Allocation,
   type AgentEventKind,
+  type CessStatus,
   type CommissionSetting,
   type LineStatus,
   type LineStock,
@@ -39,6 +42,8 @@ export const getSale = (id: string) => agent().sales.find((s) => s.id === id);
 export const allReturns = () => agent().returns;
 export const allPayments = () => agent().payments;
 export const allAgentEvents = () => agent().events;
+export const allAllocations = () => agent().allocations;
+export const allocationsFor = (movementId: string) => agent().allocations.filter((a) => a.movementId === movementId);
 
 export function lineStock(receipt: Receipt, line: ReceiptLine): LineStock {
   let sold = 0;
@@ -423,4 +428,102 @@ export function saleCoverage(sale: Sale): number {
     if (s.id === sale.id) return total > 0 ? covered / total : 1;
   }
   return 0;
+}
+
+
+// ---------- allocations to traders ----------
+
+export type AllocationInput = {
+  movementId: string;
+  product: string;
+  unit: Unit;
+  photo?: string;
+  supplier: string;
+  origin: string;
+  challanNo: string;
+  lines: {
+    partyId: string;
+    qty: number;
+    rate: number;
+    billNo: string;
+    traderLicence: string;
+    traderGstin: string;
+    /** CESS received at the time of allocation. 0 means collect later. */
+    cessReceived: number;
+    cessMode?: PayMode;
+    cessRef: string;
+  }[];
+};
+
+export type AllocationResult =
+  | { ok: true; allocations: Allocation[] }
+  | { ok: false; code: "no-vehicle" | "invalid"; message: string };
+
+/** Saves one allocation per trader for a truck. Goods value times the admin CESS rate gives the CESS. */
+export function createAllocations(input: AllocationInput, by: string): AllocationResult {
+  const movement = getMovement(input.movementId);
+  if (!movement) return { ok: false, code: "no-vehicle", message: "This vehicle is no longer on record." };
+  if (!input.product.trim() || !input.supplier.trim() || input.lines.length === 0) {
+    return { ok: false, code: "invalid", message: "Add the product, the supplier and at least one trader." };
+  }
+  const now = Date.now();
+  const net = movement.weighments ? (() => {
+    const g = movement.weighments.find((w) => w.stage === "gross");
+    const t = movement.weighments.find((w) => w.stage === "tare");
+    return g && t ? g.kg - t.kg : null;
+  })() : null;
+  const made: Allocation[] = [];
+  for (const l of input.lines) {
+    const party = getParty(l.partyId);
+    if (!party || party.kind !== "trader" || !(l.qty > 0) || !(l.rate > 0)) {
+      return { ok: false, code: "invalid", message: "Each trader needs a quantity and a rate above zero." };
+    }
+    if (!l.billNo.trim()) return { ok: false, code: "invalid", message: `Enter the bill number for ${party.name}.` };
+    const amount = Math.round(l.qty * l.rate * 100) / 100;
+    const cess = cessFor(saasSettings(), amount);
+    if (l.cessReceived < 0 || l.cessReceived > cess.amount) {
+      return { ok: false, code: "invalid", message: `CESS received for ${party.name} cannot be more than ${cess.amount}.` };
+    }
+    const status: CessStatus = l.cessReceived <= 0 ? "pending" : l.cessReceived >= cess.amount ? "collected" : "part";
+    if (l.cessReceived > 0 && !l.cessMode) return { ok: false, code: "invalid", message: `Choose how ${party.name} paid the CESS.` };
+    const n = agent().allocations.length + made.length + 1;
+    made.push({
+      id: `al-${uid()}`,
+      no: `AL-${1000 + n}`,
+      movementId: movement.id,
+      plate: movement.plate,
+      driverName: movement.driverName,
+      product: input.product.trim(),
+      unit: input.unit,
+      qty: l.qty,
+      rate: l.rate,
+      amount,
+      cess: cess.amount,
+      cessLabel: cess.label,
+      partyId: party.id,
+      partyName: party.name,
+      photo: input.photo,
+      at: now,
+      agent: by,
+      supplier: input.supplier.trim(),
+      origin: input.origin.trim(),
+      challanNo: input.challanNo.trim(),
+      bridgeNetKg: net,
+      billNo: l.billNo.trim(),
+      traderLicence: l.traderLicence.trim(),
+      traderGstin: l.traderGstin.trim().toUpperCase(),
+      cessPaid: l.cessReceived,
+      cessStatus: status,
+      cessMode: l.cessReceived > 0 ? l.cessMode : undefined,
+      cessRef: l.cessRef.trim(),
+      cessReceiptNo: l.cessReceived > 0 ? `CR-${1000 + n}` : "",
+      cessReceivedBy: l.cessReceived > 0 ? by : "",
+    });
+  }
+  for (const a of made) {
+    agent().allocations.unshift(a);
+    log("allocated", `Allocated ${a.qty} ${a.unit} ${a.product} from ${a.plate || "a truck"} to ${a.partyName}`, { partyId: a.partyId });
+  }
+  commit();
+  return { ok: true, allocations: made };
 }

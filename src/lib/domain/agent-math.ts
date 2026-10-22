@@ -29,3 +29,15 @@ export function toNum(v: string): number {
   if (!v.trim()) return NaN;
   return Number(v.replace(/,/g, ""));
 }
+
+/** CESS on an allocation, from the rate the admin has set (percent of value, or a flat amount per allocation). */
+export function cessFor(
+  cfg: { enabled: boolean; type: "percent" | "flat"; rate: number },
+  amount: number
+): { amount: number; label: string } {
+  if (!cfg.enabled || !(amount > 0)) return { amount: 0, label: "CESS is switched off" };
+  if (cfg.type === "percent") {
+    return { amount: Math.round(((amount * cfg.rate) / 100) * 100) / 100, label: `${cfg.rate}% of value` };
+  }
+  return { amount: cfg.rate, label: `₹${cfg.rate} flat` };
+}

@@ -8,6 +8,7 @@ import {
   HandCoinsIcon,
   PackageIcon,
   ShoppingCartIcon,
+  SplitIcon,
   TriangleAlertIcon,
   Undo2Icon,
 } from "lucide-react";
@@ -50,7 +51,7 @@ export function WaitingCard({ query, onOpen }: { query: Query<WaitingLot[]>; onO
         )}
         {query.status === "error" && <BlockError onRetry={query.retry} className={BODY} />}
         {query.status === "ready" && query.data.length === 0 && (
-          <BlockEmpty icon={PackageIcon} text="No stock waiting for sale." actionLabel="Receive goods" onAction={() => router.push("/receive-goods")} className={BODY} />
+          <BlockEmpty icon={PackageIcon} text="No stock waiting for sale." actionLabel="Allocate to traders" onAction={() => router.push("/allocations")} className={BODY} />
         )}
         {query.status === "ready" && query.data.length > 0 && (
           <div className={cn(BODY, "overflow-auto")}>
@@ -168,7 +169,7 @@ export function AgentAttentionCard({
                     type="button"
                     onClick={() =>
                       a.kind === "overdue" && a.partyId
-                        ? router.push(`/settlements?party=${a.partyId}`)
+                        ? router.push("/report")
                         : a.receiptId
                           ? onOpenReceipt(a.receiptId)
                           : undefined
@@ -201,6 +202,7 @@ const eventIcon = {
   returned: Undo2Icon,
   paid: HandCoinsIcon,
   blocked: BanIcon,
+  allocated: SplitIcon,
 } as const;
 
 export function AgentRecentCard({
@@ -234,7 +236,7 @@ export function AgentRecentCard({
         )}
         {query.status === "error" && <BlockError onRetry={query.retry} className={BODY} />}
         {query.status === "ready" && query.data.length === 0 && (
-          <BlockEmpty icon={ClockIcon} text="No activity yet." actionLabel="Receive goods" onAction={() => router.push("/receive-goods")} className={BODY} />
+          <BlockEmpty icon={ClockIcon} text="No activity yet." actionLabel="Allocate to traders" onAction={() => router.push("/allocations")} className={BODY} />
         )}
         {query.status === "ready" && query.data.length > 0 && (
           <ul className={cn(BODY, "overflow-y-auto")}>

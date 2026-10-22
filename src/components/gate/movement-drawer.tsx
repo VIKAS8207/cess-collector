@@ -12,6 +12,7 @@ import { useToast } from "@/components/gate/toast";
 import { useAuth } from "@/lib/auth-store";
 import { submitClearFlag } from "@/lib/api/gate";
 import { getMovement, useStoreVersion } from "@/lib/domain/store";
+import { stageLabel } from "@/lib/domain/types";
 import { formatStamp } from "@/lib/format";
 import { useNow } from "@/hooks/use-now";
 import { cn } from "cn";
@@ -142,7 +143,6 @@ export function MovementDrawer({
                     <Row label="Vehicle type" value={m.vehicleType} />
                     <Row label="Vehicle class" value={m.vehicleClass} />
                     <Row label="Driver" value={m.driverName} />
-                    <Row label="Driver phone" value={m.driverPhone} />
                     <Row label="Transporter" value={m.transporter} />
                     <Row label="Purpose" value={m.purpose} />
                     <Row label="Reference" value={m.reference} />
@@ -155,13 +155,19 @@ export function MovementDrawer({
                     <h3 id="d-weight" className="text-heading-md text-foreground">
                       Weight
                     </h3>
-                    <ul className="flex flex-col gap-2 text-sm">
-                      {m.weighments!.map((w, i) => (
+                    <ul className="flex flex-col gap-3 text-sm">
+                      {[...m.weighments!].reverse().map((w, i) => (
                         <li key={i} className="flex flex-col">
-                          <span className="tabular-nums text-foreground">{w.kg.toLocaleString("en-IN")} kg</span>
+                          <span className="tabular-nums text-foreground">
+                            {stageLabel[w.stage]} · {w.kg.toLocaleString("en-IN")} kg · {w.product}
+                          </span>
                           <span className="text-caption text-muted-foreground">
                             {w.source === "bridge" ? "Weight bridge" : "Typed in"} · {formatStamp(w.at)} · {w.by}
                           </span>
+                          {w.photo && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={w.photo} alt={`${stageLabel[w.stage]} weighing photo`} className="mt-2 aspect-8/5 w-full max-w-60 rounded-field border border-border object-cover" />
+                          )}
                         </li>
                       ))}
                     </ul>

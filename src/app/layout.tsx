@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: { default: "SAAS Collector", template: "%s · SAAS Collector" },
+  title: { default: "CESS Collector", template: "%s · CESS Collector" },
   description: "Collect, track and reconcile in one place.",
 };
 

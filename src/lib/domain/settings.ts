@@ -31,7 +31,7 @@ export const config = {
   } as SaasSettings,
   gates: [{ id: "gate-1", name: "Gate 1", active: true }] as Gate[],
   business: {
-    name: "SAS Collector Agro Market",
+    name: "CESS Collector Agro Market",
     address: "Plot 14, APMC Market Yard",
     city: "Pune",
     phone: "020 5550 1400",

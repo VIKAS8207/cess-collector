@@ -416,6 +416,48 @@ export async function readCamera(kind: "plate" | "fastag"): Promise<string> {
   return `3416${Array.from({ length: 14 }, () => Math.floor(Math.random() * 10)).join("")}`;
 }
 
+export type VehicleDetails = { vehicleType: VehicleType; vehicleClass: string; bank: string };
+
+const classByType: Record<VehicleType, string> = {
+  Truck: "Class 5 · Truck (3 axle)",
+  Trailer: "Class 7 · Truck (7+ axle)",
+  Tanker: "Class 6 · Truck (4-6 axle)",
+  Container: "Class 6 · Truck (4-6 axle)",
+  Pickup: "Class 4 · Truck (2 axle)",
+};
+const issuers = ["HDFC Bank", "ICICI Bank", "SBI", "Axis Bank", "IDFC FIRST Bank", "Paytm Payments Bank"];
+const typeCycle: VehicleType[] = ["Truck", "Truck", "Truck", "Trailer", "Tanker", "Container", "Container", "Pickup"];
+
+/**
+ * Stand-in for the registration and FASTag registry lookups. A known vehicle returns what was
+ * seen on its last visit; any other plate or tag gets stable details derived from the number.
+ */
+export function vehicleDetailsFor(by: { plate?: string; fastag?: string }): VehicleDetails | null {
+  const plate = normalizeId(by.plate ?? "");
+  const tag = normalizeId(by.fastag ?? "");
+  if (!plate && !tag) return null;
+  const known = knownVehicle(by);
+  if (known) return { vehicleType: known.vehicleType, vehicleClass: known.vehicleClass, bank: known.bank };
+  let h = 0;
+  for (const c of plate + tag) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const vehicleType = typeCycle[h % typeCycle.length];
+  return { vehicleType, vehicleClass: classByType[vehicleType], bank: issuers[(h >>> 3) % issuers.length] };
+}
+
+/** Test helper behind the "Simulate" button: a plate and FASTag that are not inside right now. */
+export async function simulateArrival(): Promise<{ plate: string; fastag: string }> {
+  await delay(500, 900);
+  const open = new Set(allMovements().filter((m) => m.status === "Inside").flatMap((m) => [normalizeId(m.plate), normalizeId(m.fastag)]));
+  const past = allMovements().filter((m) => m.status === "Exited" && m.plate && m.fastag && !open.has(normalizeId(m.plate)) && !open.has(normalizeId(m.fastag)));
+  if (past.length > 0 && Math.random() < 0.6) {
+    const one = past[Math.floor(Math.random() * past.length)];
+    return { plate: one.plate, fastag: one.fastag };
+  }
+  const l = () => plateLetters[Math.floor(Math.random() * plateLetters.length)];
+  const d = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join("");
+  return { plate: `MH${d(2)}${l()}${l()}${d(4)}`, fastag: `3416${d(14)}` };
+}
+
 // ---------- exit by QR scan ----------
 
 export type ScanLookup =
@@ -445,7 +487,7 @@ export async function lookupScan(raw: string): Promise<ScanLookup> {
 
 // ---------- weight bridge ----------
 
-export async function submitWeighment(id: string, input: { kg: number; source: "bridge" | "manual" }, operator: string) {
+export async function submitWeighment(id: string, input: { kg: number; source: "bridge" | "manual"; product: string; photo?: string }, operator: string) {
   await delay();
   return recordWeighment(id, input, operator);
 }

@@ -109,7 +109,7 @@ export function SidebarContent({
           <Link
             href="/dashboard"
             onClick={onNavigate}
-            aria-label="SAAS Collector home"
+            aria-label="CESS Collector home"
             className="inline-flex h-10 items-center rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <Brand showName={!collapsed} />

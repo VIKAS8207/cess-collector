@@ -9,7 +9,7 @@ export const HOUR = 3_600_000;
 export const DAY = 24 * HOUR;
 
 export const vehicleTypes = ["Truck", "Trailer", "Tanker", "Container", "Pickup"] as const;
-export const purposes = ["Delivery", "Pickup", "Transfer", "Service"] as const;
+export const purposes = ["Loading", "Unloading"] as const;
 export const statuses = ["Inside", "Exited", "Flagged"] as const;
 
 export type VehicleType = (typeof vehicleTypes)[number];
@@ -31,12 +31,33 @@ export const exceptionLabels: Record<ExceptionKind, string> = {
 
 export type AuditEntry = { at: number; by: string; action: string; note?: string };
 
+export type WeighStage = "gross" | "tare";
+
+/** One pass over the weight bridge. Gross is the loaded truck, tare is the same truck empty after delivery. */
 export type Weighment = {
+  stage: WeighStage;
   kg: number;
   source: "bridge" | "manual";
   at: number;
   by: string;
+  product: string;
+  /** Photo taken at the bridge, as a small data URL. */
+  photo?: string;
 };
+
+export const stageLabel: Record<WeighStage, string> = { gross: "Gross", tare: "Tare" };
+
+/** First pass is gross, second is tare, then the truck is done. */
+export function nextStage(m: Pick<Movement, "weighments">): WeighStage | null {
+  const n = m.weighments?.length ?? 0;
+  return n === 0 ? "gross" : n === 1 ? "tare" : null;
+}
+
+export function weighSummary(m: Pick<Movement, "weighments">) {
+  const gross = m.weighments?.find((w) => w.stage === "gross");
+  const tare = m.weighments?.find((w) => w.stage === "tare");
+  return { gross, tare, net: gross && tare ? gross.kg - tare.kg : null, product: gross?.product ?? tare?.product ?? "" };
+}
 
 export type Movement = {
   id: string;

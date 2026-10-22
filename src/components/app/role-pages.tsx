@@ -11,6 +11,7 @@ import { TraderSalesPage } from "@/components/trader/sales/trader-sales-page";
 import { AgentReportPage } from "@/components/agent/report/agent-report-page";
 import { DashboardPage } from "@/components/dashboard/dashboard-page";
 import { ReportPage } from "@/components/report/report-page";
+import { WeighDashboard } from "@/components/weigh/weigh-dashboard";
 import { useAuth } from "@/lib/auth-store";
 
 /** Same URL, different page per role. */
@@ -19,6 +20,7 @@ export function RoleDashboard() {
   if (user?.roleId === "commission_agent") return <AgentDashboard />;
   if (user?.roleId === "trader") return <TraderDashboard />;
   if (user?.roleId === "admin") return <AdminDashboard />;
+  if (user?.roleId === "weighbridge_operator") return <WeighDashboard />;
   return <DashboardPage />;
 }
 

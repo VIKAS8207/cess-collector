@@ -2,112 +2,56 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { CameraIcon, WandSparklesIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Segmented } from "@/components/ui/segmented";
 import { SelectField } from "@/components/ui/select-field";
-import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { FormBanner } from "@/components/auth/form-banner";
 import { TextField } from "@/components/auth/text-field";
-import { knownVehicle, submitEntry, suggestionsFor } from "@/lib/api/gate";
-import { CameraIcon } from "lucide-react";
+import { simulateArrival, submitEntry, vehicleDetailsFor, type VehicleDetails } from "@/lib/api/gate";
 import { CameraDialog, type CameraKind } from "@/components/gate-entry/camera-dialog";
 import { checkEntry, normalizeId, useStoreVersion } from "@/lib/domain/store";
-import {
-  type EntryInput,
-  type Movement,
-  type Purpose,
-  type VehicleType,
-} from "@/lib/domain/types";
+import { purposes, vehicleTypes, type EntryInput, type Movement, type Purpose } from "@/lib/domain/types";
 import { activeGate } from "@/lib/domain/settings";
 import { formatStamp } from "@/lib/format";
 import { useNow } from "@/hooks/use-now";
-import { activeLabels } from "@/lib/domain/admin-store";
-
-type Mode = "plate" | "fastag" | "both";
 
 type Form = {
-  mode: Mode;
   plate: string;
   plateOverride: boolean;
   fastag: string;
   noFastag: boolean;
-  vehicleClass: string;
-  bank: string;
   driverName: string;
-  driverPhone: string;
-  vehicleType: VehicleType;
   transporter: string;
   purpose: Purpose | "";
-  reference: string;
-  remarks: string;
+  /** Fetched details the operator has changed by hand. Cleared when the plate or FASTag changes. */
+  edits: Partial<VehicleDetails>;
 };
 
 const INITIAL: Form = {
-  mode: "both",
   plate: "",
   plateOverride: false,
   fastag: "",
   noFastag: false,
-  vehicleClass: "",
-  bank: "",
   driverName: "",
-  driverPhone: "",
-  vehicleType: "Truck",
   transporter: "",
   purpose: "",
-  reference: "",
-  remarks: "",
+  edits: {},
 };
 
 const PLATE_RE = /^[A-Z]{2}\d{1,2}[A-Z]{1,3}\d{4}$/;
-const modes = [
-  { value: "plate", label: "Plate only" },
-  { value: "fastag", label: "FASTag only" },
-  { value: "both", label: "Both" },
-] as const;
-const classOptions = [
-  { value: "", label: "Select class" },
-  { value: "Class 4 · Truck (2 axle)", label: "Class 4 · Truck (2 axle)" },
-  { value: "Class 5 · Truck (3 axle)", label: "Class 5 · Truck (3 axle)" },
-  { value: "Class 6 · Truck (4-6 axle)", label: "Class 6 · Truck (4-6 axle)" },
-  { value: "Class 7 · Truck (7+ axle)", label: "Class 7 · Truck (7+ axle)" },
-];
-const bankOptions = [
-  { value: "", label: "Select bank (optional)" },
-  ...["HDFC Bank", "ICICI Bank", "SBI", "Axis Bank", "IDFC FIRST Bank", "Paytm Payments Bank", "Other"].map(
-    (b) => ({ value: b, label: b })
-  ),
-];
-const typeOptions = () => activeLabels("vehicleTypes").map((t) => ({ value: t, label: t }));
-const purposeOptions = () => [
-  { value: "", label: "Select purpose" },
-  ...activeLabels("purposes").map((p) => ({ value: p, label: p })),
-];
+const purposeOptions = [{ value: "", label: "Select purpose" }, ...purposes.map((p) => ({ value: p, label: p }))];
 
-const NAV_ORDER = [
-  "ge-plate",
-  "ge-fastag",
-  "ge-nofastag",
-  "ge-class",
-  "ge-bank",
-  "ge-driver",
-  "ge-phone",
-  "ge-vtype",
-  "ge-transporter",
-  "ge-purpose",
-  "ge-ref",
-  "ge-remarks",
-];
+const typeOptions = vehicleTypes.map((t) => ({ value: t, label: t }));
+const classList = ["Class 4 · Truck (2 axle)", "Class 5 · Truck (3 axle)", "Class 6 · Truck (4-6 axle)", "Class 7 · Truck (7+ axle)"];
+const bankList = ["HDFC Bank", "ICICI Bank", "SBI", "Axis Bank", "IDFC FIRST Bank", "Paytm Payments Bank", "Other"];
+const optionsWith = (list: string[], current: string) =>
+  (current && !list.includes(current) ? [...list, current] : list).map((v) => ({ value: v, label: v }));
+
+const NAV_ORDER = ["ge-plate", "ge-fastag", "ge-nofastag", "ge-vtype", "ge-class", "ge-bank", "ge-driver", "ge-transporter", "ge-purpose"];
 
 const stamp = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "medium" });
-
-function phoneDigits(v: string) {
-  let d = v.replace(/\D/g, "");
-  if (d.length === 12 && d.startsWith("91")) d = d.slice(2);
-  return d;
-}
 
 function Section({
   title,
@@ -141,75 +85,56 @@ export function EntryForm({
   const [f, setF] = useState<Form>(INITIAL);
   const [attempted, setAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [simulating, setSimulating] = useState(false);
   const [serverError, setServerError] = useState(false);
   const [cam, setCam] = useState<CameraKind | null>(null);
   const [shots, setShots] = useState<{ plate?: string; fastag?: string }>({});
   const [captureNote, setCaptureNote] = useState<string | null>(null);
   const [blocked, setBlocked] = useState<{ kind: "duplicate" | "conflict"; movement: Movement } | null>(null);
-  const set = (patch: Partial<Form>) => setF((p) => ({ ...p, ...patch }));
+  const set = (patch: Partial<Form>) =>
+    setF((p) => ({ ...p, ...("plate" in patch || "fastag" in patch || "noFastag" in patch ? { edits: {} } : {}), ...patch }));
 
-  const focusFirst = (mode: Mode) =>
-    requestAnimationFrame(() => document.getElementById(mode === "fastag" ? "ge-fastag" : "ge-plate")?.focus());
+  const focusFirst = () => requestAnimationFrame(() => document.getElementById("ge-plate")?.focus());
 
   useEffect(() => {
-    focusFirst("both");
+    focusFirst();
   }, []);
 
-  const plateOn = f.mode !== "fastag";
-  const tagOn = f.mode !== "plate";
-  const tagRequired = tagOn && !f.noFastag;
   const plateId = normalizeId(f.plate);
-  const plateNonStandard = plateOn && !!plateId && !PLATE_RE.test(plateId) && !f.plateOverride;
+  const plateNonStandard = !!plateId && !PLATE_RE.test(plateId) && !f.plateOverride;
+  const fetched = vehicleDetailsFor({ plate: f.plate, fastag: f.noFastag ? "" : f.fastag });
+  const details: VehicleDetails | null = fetched && { ...fetched, ...f.edits };
+  const editDetail = (patch: Partial<VehicleDetails>) => setF((p) => ({ ...p, edits: { ...p.edits, ...patch } }));
 
   const errors: Partial<Record<string, string>> = {};
-  if (plateOn && !plateId) errors.plate = "Enter the plate number.";
-  if (tagOn && tagRequired && !f.fastag.trim()) errors.fastag = "Scan or enter the FASTag ID.";
+  if (!plateId) errors.plate = "Enter the plate number.";
+  if (!f.noFastag && !f.fastag.trim()) errors.fastag = "Scan or enter the FASTag ID.";
   if (!f.driverName.trim()) errors.driver = "Enter the driver name.";
-  if (phoneDigits(f.driverPhone).length !== 10) errors.phone = "Enter a 10-digit phone number.";
   if (!f.purpose) errors.purpose = "Choose a purpose.";
   const valid = Object.keys(errors).length === 0;
   const shown = attempted ? errors : {};
 
-  const live = plateId || f.fastag.trim() ? checkEntry(plateOn ? f.plate : "", tagOn ? f.fastag : "") : null;
-  const suggestions =
-    plateOn && plateId.length < 10 ? suggestionsFor(f.plate) : [];
+  const live = plateId || f.fastag.trim() ? checkEntry(f.plate, f.noFastag ? "" : f.fastag) : null;
 
-  const pickSuggestion = (m: Movement) =>
-    set({
-      plate: m.plate,
-      fastag: tagOn && !f.fastag ? m.fastag : f.fastag,
-      vehicleType: m.vehicleType,
-      transporter: f.transporter || m.transporter,
-      vehicleClass: f.vehicleClass || m.vehicleClass,
-      bank: f.bank || m.bank,
-    });
-
-  /** A camera result fills the plate or FASTag and the vehicle details seen on its last visit. The driver is never copied. */
+  /** A camera result fills the plate or FASTag. The vehicle details are fetched from them. The driver is never copied. */
   const applyCapture = (kind: CameraKind, value: string, image: string) => {
     setCam(null);
     setShots((s) => ({ ...s, [kind]: image }));
     const text = value.toUpperCase();
-    const known = knownVehicle(kind === "plate" ? { plate: text } : { fastag: text });
-    setF((p) => ({
-      ...p,
-      ...(kind === "plate" ? { plate: text, plateOverride: false } : { fastag: text, noFastag: false }),
-      ...(known
-        ? {
-            plate: kind === "fastag" && !p.plate && p.mode !== "fastag" ? known.plate : kind === "plate" ? text : p.plate,
-            fastag: kind === "plate" && !p.fastag && p.mode !== "plate" ? known.fastag : kind === "fastag" ? text : p.fastag,
-            vehicleType: known.vehicleType,
-            transporter: p.transporter || known.transporter,
-            vehicleClass: p.vehicleClass || known.vehicleClass,
-            bank: p.bank || known.bank,
-          }
-        : {}),
-    }));
-    const what = kind === "plate" ? "Plate" : "FASTag";
-    setCaptureNote(
-      known
-        ? `${what} ${text} is a known vehicle. Vehicle details were filled from its last visit. Enter the driver name.`
-        : `${what} ${text} was read. This vehicle is new, so enter the driver and trip details.`
-    );
+    setF((p) => ({ ...p, ...(kind === "plate" ? { plate: text, plateOverride: false } : { fastag: text, noFastag: false }), edits: {} }));
+    setCaptureNote(`${kind === "plate" ? "Plate" : "FASTag"} ${text} was read. Vehicle details were fetched. Enter the driver name.`);
+    setTimeout(() => document.getElementById("ge-driver")?.focus(), 80);
+  };
+
+  /** Test helper: fills the plate and FASTag as if both cameras had read a truck. */
+  const simulate = async () => {
+    if (simulating || submitting) return;
+    setSimulating(true);
+    const r = await simulateArrival();
+    setSimulating(false);
+    setShots({});
+    setF((p) => ({ ...p, plate: r.plate, plateOverride: false, fastag: r.fastag, noFastag: false, edits: {} }));
+    setCaptureNote(`Simulated: plate ${r.plate} and FASTag ${r.fastag} were read. Vehicle details were fetched. Enter the driver name.`);
     setTimeout(() => document.getElementById("ge-driver")?.focus(), 80);
   };
 
@@ -222,7 +147,6 @@ export function EntryForm({
         ["plate", "ge-plate"],
         ["fastag", "ge-fastag"],
         ["driver", "ge-driver"],
-        ["phone", "ge-phone"],
         ["purpose", "ge-purpose"],
       ].find(([k]) => errors[k]);
       if (firstId) document.getElementById(firstId[1])?.focus();
@@ -230,29 +154,29 @@ export function EntryForm({
     }
     setSubmitting(true);
     const input: EntryInput = {
-      plate: plateOn ? f.plate : "",
-      fastag: tagOn && !f.noFastag ? f.fastag : "",
-      noFastag: tagOn ? f.noFastag : false,
-      vehicleClass: tagOn ? f.vehicleClass : "",
-      bank: tagOn ? f.bank : "",
+      plate: f.plate,
+      fastag: f.noFastag ? "" : f.fastag,
+      noFastag: f.noFastag,
+      vehicleClass: details?.vehicleClass ?? "",
+      bank: f.noFastag ? "" : (details?.bank ?? ""),
       driverName: f.driverName.trim(),
-      driverPhone: phoneDigits(f.driverPhone),
-      vehicleType: f.vehicleType,
+      driverPhone: "",
+      vehicleType: details?.vehicleType ?? "Truck",
       transporter: f.transporter.trim(),
       purpose: f.purpose as Purpose,
-      reference: f.reference.trim(),
-      remarks: f.remarks.trim(),
+      reference: "",
+      remarks: "",
     };
     try {
       const result = await submitEntry(input, operator);
       if (result.ok) {
         setBlocked(null);
         onSaved(result.movement);
-        setF({ ...INITIAL, mode: f.mode });
+        setF(INITIAL);
         setShots({});
         setCaptureNote(null);
         setAttempted(false);
-        setTimeout(() => focusFirst(f.mode), 80);
+        setTimeout(focusFirst, 80);
       } else {
         setBlocked({ kind: result.code, movement: result.movement });
       }
@@ -320,22 +244,9 @@ export function EntryForm({
           }
         />
 
-        <Section title="Identification mode">
-          <Segmented
-            label="Identification mode"
-            value={f.mode}
-            options={modes}
-            disabled={submitting}
-            onChange={(mode) => {
-              set({ mode });
-              focusFirst(mode);
-            }}
-          />
-        </Section>
-
         <Section
           title="Gate cameras"
-          hint="Capture the number plate and the FASTag. The details fill in. The driver name is always typed."
+          hint="Capture the number plate and the FASTag. The vehicle details fill in. The driver name is always typed."
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <CameraTile
@@ -343,7 +254,7 @@ export function EntryForm({
               valueLabel="Plate"
               value={f.plate}
               image={shots.plate}
-              disabled={!plateOn || submitting}
+              disabled={submitting}
               onCapture={() => setCam("plate")}
             />
             <CameraTile
@@ -351,31 +262,34 @@ export function EntryForm({
               valueLabel="FASTag"
               value={f.fastag}
               image={shots.fastag}
-              disabled={!tagOn || f.noFastag || submitting}
+              disabled={f.noFastag || submitting}
               onCapture={() => setCam("fastag")}
             />
+          </div>
+          <div>
+            <Button type="button" variant="ghost" onClick={() => void simulate()} disabled={simulating || submitting} aria-busy={simulating}>
+              {simulating ? <Spinner /> : <WandSparklesIcon aria-hidden="true" />}
+              Simulate
+            </Button>
           </div>
           <FormBanner tone="info" message={captureNote} />
         </Section>
 
-        <Section
-          title="Registration plate"
-          hint={plateOn ? undefined : "Not needed in FASTag only mode."}
-        >
+        <Section title="Registration plate">
           <TextField
             id="ge-plate"
             label="Plate number"
-            required={plateOn}
+            required
             value={f.plate}
             onChange={(v) => set({ plate: v.toUpperCase(), plateOverride: false })}
-            disabled={!plateOn || submitting}
+            disabled={submitting}
             error={shown.plate}
             maxLength={14}
             autoComplete="off"
             autoCapitalize="characters"
             spellCheck={false}
             placeholder="MH12AB1234"
-            hint={plateOn && !plateNonStandard ? "Example: MH12AB1234" : undefined}
+            hint={!plateNonStandard ? "Example: MH12AB1234" : undefined}
             className="[&_input]:h-14 [&_input]:text-xl [&_input]:tracking-wider"
           />
           {plateNonStandard && (
@@ -388,24 +302,6 @@ export function EntryForm({
               >
                 Enter anyway
               </button>
-            </div>
-          )}
-          {suggestions.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <p className="text-caption text-muted-foreground">Recent plates</p>
-              <ul className="flex flex-wrap gap-2">
-                {suggestions.map((m) => (
-                  <li key={m.id}>
-                    <button
-                      type="button"
-                      onClick={() => pickSuggestion(m)}
-                      className="inline-flex h-10 items-center rounded-full border border-border bg-background px-3 text-sm tabular-nums outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
-                    >
-                      {m.plate}
-                    </button>
-                  </li>
-                ))}
-              </ul>
             </div>
           )}
           {live && live.kind !== "ok" && !blocked && (
@@ -428,14 +324,14 @@ export function EntryForm({
           )}
         </Section>
 
-        <Section title="FASTag" hint={tagOn ? undefined : "Not needed in Plate only mode."}>
+        <Section title="FASTag">
           <TextField
             id="ge-fastag"
             label="FASTag ID"
-            required={tagOn && !f.noFastag}
+            required={!f.noFastag}
             value={f.fastag}
             onChange={(v) => set({ fastag: v.toUpperCase() })}
-            disabled={!tagOn || f.noFastag || submitting}
+            disabled={f.noFastag || submitting}
             error={shown.fastag}
             autoComplete="off"
             spellCheck={false}
@@ -446,28 +342,39 @@ export function EntryForm({
               id="ge-nofastag"
               type="checkbox"
               checked={f.noFastag}
-              disabled={!tagOn || submitting}
+              disabled={submitting}
               onChange={(e) => set({ noFastag: e.target.checked, fastag: e.target.checked ? "" : f.fastag })}
               className="size-4 rounded-xs accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             />
             Vehicle has no FASTag
           </label>
-          <div className="grid gap-4 sm:grid-cols-2">
+        </Section>
+
+        <Section title="Fetched automatically" hint="Looked up from the plate and FASTag. Change them if the lookup is wrong.">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <SelectField
+              id="ge-vtype"
+              label="Vehicle type"
+              value={details?.vehicleType ?? ""}
+              onChange={(v) => editDetail({ vehicleType: v as VehicleDetails["vehicleType"] })}
+              options={details ? typeOptions : [{ value: "", label: "—" }]}
+              disabled={!details || submitting}
+            />
             <SelectField
               id="ge-class"
               label="Vehicle class"
-              value={f.vehicleClass}
-              onChange={(v) => set({ vehicleClass: v })}
-              options={classOptions}
-              disabled={!tagOn || submitting}
+              value={details?.vehicleClass ?? ""}
+              onChange={(v) => editDetail({ vehicleClass: v })}
+              options={details ? optionsWith(classList, details.vehicleClass) : [{ value: "", label: "—" }]}
+              disabled={!details || submitting}
             />
             <SelectField
               id="ge-bank"
               label="Issuing bank"
-              value={f.bank}
-              onChange={(v) => set({ bank: v })}
-              options={bankOptions}
-              disabled={!tagOn || submitting}
+              value={f.noFastag ? "" : (details?.bank ?? "")}
+              onChange={(v) => editDetail({ bank: v })}
+              options={details && !f.noFastag ? optionsWith(bankList, details.bank) : [{ value: "", label: f.noFastag ? "No FASTag" : "—" }]}
+              disabled={!details || f.noFastag || submitting}
             />
           </div>
         </Section>
@@ -486,27 +393,6 @@ export function EntryForm({
               disabled={submitting}
             />
             <TextField
-              id="ge-phone"
-              label="Driver phone"
-              required
-              type="tel"
-              inputMode="tel"
-              value={f.driverPhone}
-              onChange={(v) => set({ driverPhone: v })}
-              error={shown.phone}
-              autoComplete="off"
-              disabled={submitting}
-              placeholder="10-digit mobile"
-            />
-            <SelectField
-              id="ge-vtype"
-              label="Vehicle type"
-              value={f.vehicleType}
-              onChange={(v) => set({ vehicleType: v as VehicleType })}
-              options={typeOptions()}
-              disabled={submitting}
-            />
-            <TextField
               id="ge-transporter"
               label="Transporter / company"
               value={f.transporter}
@@ -520,30 +406,9 @@ export function EntryForm({
               required
               value={f.purpose}
               onChange={(v) => set({ purpose: v as Purpose })}
-              options={purposeOptions()}
+              options={purposeOptions}
               error={shown.purpose}
               disabled={submitting}
-            />
-            <TextField
-              id="ge-ref"
-              label="Reference number"
-              value={f.reference}
-              onChange={(v) => set({ reference: v })}
-              autoComplete="off"
-              disabled={submitting}
-              hint="Optional"
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <label htmlFor="ge-remarks" className="text-sm text-foreground">
-              Remarks
-            </label>
-            <Textarea
-              id="ge-remarks"
-              value={f.remarks}
-              onChange={(e) => set({ remarks: e.target.value })}
-              disabled={submitting}
-              placeholder="Optional"
             />
           </div>
         </Section>

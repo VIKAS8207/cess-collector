@@ -1,9 +1,10 @@
 "use client";
 
+import { DataTable, type Column } from "@/components/ui/data-table";
 import { useEffect, useRef, useState } from "react";
 import { PrintBusiness } from "@/components/gate/print-business";
 import { useSearchParams } from "next/navigation";
-import { CalendarIcon, SearchIcon, WalletIcon } from "lucide-react";
+import { EyeIcon, CalendarIcon, SearchIcon, WalletIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/select-field";
@@ -14,7 +15,7 @@ import { SideDrawer } from "@/components/gate/side-drawer";
 import { BuyerPill } from "@/components/trader/pills";
 import { BuyerDrawer } from "@/components/trader/collections/buyer-drawer";
 import { useAuth } from "@/lib/auth-store";
-import { buyerDetail, getCollections, getSaasMovements, type SaasMovement } from "@/lib/api/trader";
+import { buyerDetail, getCollections, getSaasMovements, type BuyerRow, type SaasMovement } from "@/lib/api/trader";
 import { forcedErrors } from "@/lib/api/gate";
 import { describeRange, resolveRange, type RangePreset } from "@/lib/domain/range";
 import { SAAS_LABEL } from "@/lib/domain/trader-types";
@@ -23,6 +24,26 @@ import { useLiveQuery } from "@/hooks/use-live-query";
 import { useHotkey } from "@/hooks/use-hotkey";
 import { useNow } from "@/hooks/use-now";
 import { cn } from "cn";
+
+const buyerColumns: Column<BuyerRow>[] = [
+  {
+    key: "buyer",
+    header: "Buyer",
+    primary: true,
+    cell: (r) => (
+      <span className="flex flex-col">
+        <span>{r.buyer.name}</span>
+        <span className="text-caption tabular-nums text-muted-foreground">{r.buyer.phone}</span>
+      </span>
+    ),
+  },
+  { key: "bills", header: "Bills", align: "right", hideBelow: "2xl", cell: (r) => r.bills },
+  { key: "goods", header: "Goods due", align: "right", hideBelow: "xl", cell: (r) => formatInr(r.goodsDue) },
+  { key: "saas", header: "Saas due", align: "right", hideBelow: "xl", cell: (r) => formatInr(r.saasDue) },
+  { key: "paid", header: "Paid", align: "right", hideBelow: "2xl", cell: (r) => <span className="text-muted-foreground">{formatInr(r.paid)}</span> },
+  { key: "due", header: "Balance due", align: "right", cell: (r) => <span className="text-foreground">{formatInr(r.totalDue)}</span> },
+  { key: "status", header: "Status", cell: (r) => <BuyerPill status={r.status} /> },
+];
 
 const BODY = "h-[480px]";
 const rangeOptions = [
@@ -139,47 +160,17 @@ export function CollectionsPage() {
               <BlockEmpty icon={WalletIcon} text={q ? "No buyer matches your search." : "No buyers with dues."} actionLabel={q ? "Clear search" : "Show last 30 days"} onAction={() => (q ? setQ("") : setRange("30d"))} className={BODY} />
             )}
             {data.status === "ready" && rows.length > 0 && (
-              <div className={cn(BODY, "@container overflow-auto")}>
-                <table className="w-full min-w-[420px] text-[15px]">
-                  <caption className="sr-only">Buyer balances</caption>
-                  <thead>
-                    <tr className="h-10 border-b border-border text-left text-caption text-muted-foreground">
-                      <th scope="col" className="font-normal">Buyer</th>
-                      <th scope="col" className="hidden text-right font-normal @2xl:table-cell">Bills</th>
-                      <th scope="col" className="hidden text-right font-normal @xl:table-cell">Goods due</th>
-                      <th scope="col" className="hidden text-right font-normal @xl:table-cell">Saas due</th>
-                      <th scope="col" className="hidden text-right font-normal @2xl:table-cell">Paid</th>
-                      <th scope="col" className="text-right font-normal">Balance due</th>
-                      <th scope="col" className="pl-4 font-normal">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r) => (
-                      <tr key={r.buyer.id} onClick={() => setOpenId(r.buyer.id)} className="h-14 cursor-pointer border-b border-border last:border-b-0 hover:bg-muted">
-                        <th scope="row" className="py-1 pr-3 text-left font-normal">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenId(r.buyer.id);
-                            }}
-                            className="flex flex-col rounded-field text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                          >
-                            <span>{r.buyer.name}</span>
-                            <span className="text-caption tabular-nums text-muted-foreground">{r.buyer.phone}</span>
-                          </button>
-                        </th>
-                        <td className="hidden text-right tabular-nums @2xl:table-cell">{r.bills}</td>
-                        <td className="hidden text-right tabular-nums @xl:table-cell">{formatInr(r.goodsDue)}</td>
-                        <td className="hidden text-right tabular-nums @xl:table-cell">{formatInr(r.saasDue)}</td>
-                        <td className="hidden text-right tabular-nums text-muted-foreground @2xl:table-cell">{formatInr(r.paid)}</td>
-                        <td className="text-right tabular-nums text-foreground">{formatInr(r.totalDue)}</td>
-                        <td className="pl-4"><BuyerPill status={r.status} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                id="co"
+                caption="Buyer balances"
+                columns={buyerColumns}
+                rows={rows}
+                rowKey={(r) => r.buyer.id}
+                pageSize={10}
+                minWidth={420}
+                actionLabel={(r) => `Actions for ${r.buyer.name}`}
+                actions={(r) => [{ label: "View", icon: EyeIcon, onSelect: () => setOpenId(r.buyer.id) }]}
+              />
             )}
           </div>
         </Card>

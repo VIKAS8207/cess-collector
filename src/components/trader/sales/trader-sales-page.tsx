@@ -1,8 +1,9 @@
 "use client";
 
+import { DataTable, type Column } from "@/components/ui/data-table";
 import { useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CalendarIcon, CircleCheckIcon, PlusIcon, SearchIcon, ShoppingCartIcon } from "lucide-react";
+import { CalendarIcon, CircleCheckIcon, EyeIcon, PlusIcon, SearchIcon, ShoppingCartIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,7 +25,6 @@ import type { Bill, BillStatus } from "@/lib/domain/trader-types";
 import { formatInr, formatStamp, formatTime } from "@/lib/format";
 import { useLiveQuery } from "@/hooks/use-live-query";
 import { useHotkey } from "@/hooks/use-hotkey";
-import { cn } from "cn";
 
 const BODY = "h-[420px]";
 const rangeOptions = [
@@ -33,53 +33,40 @@ const rangeOptions = [
   { value: "30d", label: "Last 30 days" },
 ];
 
-function BillsTable({ rows, onOpen, highlight, showDate }: { rows: Bill[]; onOpen: (id: string) => void; highlight?: string | null; showDate?: boolean }) {
+const billColumns = (showDate?: boolean): Column<Bill>[] => [
+  {
+    key: "bill",
+    header: "Bill",
+    primary: true,
+    cell: (b) => (
+      <span className="flex flex-col">
+        <span className="tabular-nums">{b.no}</span>
+        <span className="text-caption tabular-nums text-muted-foreground">{showDate ? formatStamp(b.at) : formatTime(b.at)}</span>
+      </span>
+    ),
+  },
+  { key: "buyer", header: "Buyer", cell: (b) => <span className="block max-w-36 truncate">{b.buyerName}</span> },
+  { key: "lines", header: "Lines", align: "right", hideBelow: "lg", cell: (b) => b.lines.length },
+  { key: "goods", header: "Goods", align: "right", hideBelow: "xl", cell: (b) => formatInr(b.goods) },
+  { key: "saas", header: "Saas", align: "right", hideBelow: "xl", cell: (b) => formatInr(b.saas) },
+  { key: "payable", header: "Payable", align: "right", cell: (b) => <span className="text-foreground">{formatInr(b.payable)}</span> },
+  { key: "status", header: "Status", cell: (b) => <BillPill status={billStatus(b)} /> },
+];
+
+function BillsTable({ id, rows, onOpen, highlight, showDate }: { id: string; rows: Bill[]; onOpen: (id: string) => void; highlight?: string | null; showDate?: boolean }) {
   return (
-    <div className="@container h-full overflow-auto">
-      <table className="w-full min-w-[360px] text-[15px]">
-        <caption className="sr-only">Bills</caption>
-        <thead>
-          <tr className="h-10 border-b border-border text-left text-caption text-muted-foreground">
-            <th scope="col" className="font-normal">Bill</th>
-            <th scope="col" className="font-normal">Buyer</th>
-            <th scope="col" className="hidden text-right font-normal @lg:table-cell">Lines</th>
-            <th scope="col" className="hidden text-right font-normal @xl:table-cell">Goods</th>
-            <th scope="col" className="hidden text-right font-normal @xl:table-cell">Saas</th>
-            <th scope="col" className="text-right font-normal">Payable</th>
-            <th scope="col" className="pl-4 font-normal">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((b) => (
-            <tr
-              key={b.id}
-              onClick={() => onOpen(b.id)}
-              className={cn("h-14 cursor-pointer border-b border-border transition-colors duration-700 last:border-b-0 hover:bg-muted", highlight === b.id && "bg-tag/40")}
-            >
-              <th scope="row" className="py-1 pr-3 text-left font-normal">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpen(b.id);
-                  }}
-                  className="flex flex-col rounded-field text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  <span className="tabular-nums">{b.no}</span>
-                  <span className="text-caption tabular-nums text-muted-foreground">{showDate ? formatStamp(b.at) : formatTime(b.at)}</span>
-                </button>
-              </th>
-              <td className="max-w-36 truncate pr-3">{b.buyerName}</td>
-              <td className="hidden text-right tabular-nums @lg:table-cell">{b.lines.length}</td>
-              <td className="hidden text-right tabular-nums @xl:table-cell">{formatInr(b.goods)}</td>
-              <td className="hidden text-right tabular-nums @xl:table-cell">{formatInr(b.saas)}</td>
-              <td className="text-right tabular-nums text-foreground">{formatInr(b.payable)}</td>
-              <td className="pl-4"><BillPill status={billStatus(b)} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      id={id}
+      caption="Bills"
+      columns={billColumns(showDate)}
+      rows={rows}
+      rowKey={(b) => b.id}
+      highlightId={highlight}
+      pageSize={10}
+      minWidth={360}
+      actionLabel={(b) => `Actions for ${b.no}`}
+      actions={(b) => [{ label: "View", icon: EyeIcon, onSelect: () => onOpen(b.id) }]}
+    />
   );
 }
 
@@ -187,7 +174,7 @@ export function TraderSalesPage() {
           )}
           {today.status === "ready" && today.data.length > 0 && (
             <div className={BODY}>
-              <BillsTable rows={today.data} onOpen={setOpenId} highlight={highlight} />
+              <BillsTable id="tb-today" rows={today.data} onOpen={setOpenId} highlight={highlight} />
             </div>
           )}
         </div>
@@ -241,7 +228,7 @@ export function TraderSalesPage() {
           )}
           {history.status === "ready" && history.data.length > 0 && (
             <div className={BODY}>
-              <BillsTable rows={history.data} onOpen={setOpenId} showDate />
+              <BillsTable id="tb-hist" rows={history.data} onOpen={setOpenId} showDate />
             </div>
           )}
         </div>

@@ -7,6 +7,7 @@ import type { TraderData } from "./trader-types";
 import {
   DAY,
   HOUR,
+  nextStage,
   type EntryInput,
   type ExceptionEvent,
   type ExceptionItem,
@@ -249,7 +250,7 @@ export function flagNoEntry(plateRaw: string, operator: string): Movement {
     driverPhone: known?.driverPhone ?? "",
     vehicleType: known?.vehicleType ?? "Truck",
     transporter: known?.transporter ?? "",
-    purpose: "Pickup",
+    purpose: "Unloading",
     reference: "",
     remarks: "",
     entryAt: null,
@@ -281,22 +282,32 @@ export function clearFlag(id: string, operator: string): Movement | null {
 
 export { DAY, HOUR };
 
+export type WeighResult = { ok: true; movement: Movement } | { ok: false; reason: string };
+
+/** Records the next pass for a truck: gross first, tare second. Tare has to be lighter than gross. */
 export function recordWeighment(
   id: string,
-  input: { kg: number; source: "bridge" | "manual" },
+  input: { kg: number; source: "bridge" | "manual"; product: string; photo?: string },
   operator: string
-): Movement | null {
+): WeighResult {
   const m = getMovement(id);
-  if (!m || !(input.kg > 0)) return null;
+  if (!m) return { ok: false, reason: "This vehicle is no longer on record." };
+  if (!(input.kg > 0)) return { ok: false, reason: "Enter a weight above zero." };
+  const stage = nextStage(m);
+  if (!stage) return { ok: false, reason: "This truck has already been weighed twice." };
+  const gross = m.weighments?.find((w) => w.stage === "gross");
+  if (stage === "tare" && gross && input.kg >= gross.kg) {
+    return { ok: false, reason: `Tare must be lighter than the gross weight of ${gross.kg.toLocaleString("en-IN")} kg.` };
+  }
   const now = Date.now();
-  (m.weighments ??= []).unshift({ kg: input.kg, source: input.source, at: now, by: operator });
+  (m.weighments ??= []).unshift({ stage, kg: input.kg, source: input.source, at: now, by: operator, product: input.product, photo: input.photo });
   m.updatedAt = now;
   m.audit.push({
     at: now,
     by: operator,
-    action: "Weighed",
-    note: `${input.kg.toLocaleString("en-IN")} kg (${input.source === "bridge" ? "weight bridge" : "typed in"})`,
+    action: stage === "gross" ? "Gross weighed" : "Tare weighed",
+    note: `${input.product} · ${input.kg.toLocaleString("en-IN")} kg (${input.source === "bridge" ? "weight bridge" : "typed in"})`,
   });
   commit();
-  return m;
+  return { ok: true, movement: m };
 }

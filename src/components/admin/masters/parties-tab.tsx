@@ -1,8 +1,9 @@
 "use client";
 
+import { DataTable } from "@/components/ui/data-table";
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { SearchIcon, UsersIcon } from "lucide-react";
+import { EyeIcon, SearchIcon, UsersIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -33,7 +34,6 @@ import { allBuyers } from "@/lib/domain/trader-store";
 import { formatStamp } from "@/lib/format";
 import { useLiveQuery } from "@/hooks/use-live-query";
 import { useHotkey } from "@/hooks/use-hotkey";
-import { cn } from "cn";
 
 const BODY = "h-[460px]";
 
@@ -188,33 +188,23 @@ export function PartiesTab({ admin, initialId }: { admin: string; initialId: str
         {list.status === "error" && <BlockError onRetry={list.retry} className={BODY} />}
         {list.status === "ready" && rows.length === 0 && <BlockEmpty icon={UsersIcon} text="No parties match." actionLabel="Clear filters" onAction={() => { setKind(""); setStatus(""); setQ(""); }} className={BODY} />}
         {list.status === "ready" && rows.length > 0 && (
-          <div className={cn(BODY, "@container overflow-auto")}>
-            <table className="w-full min-w-[420px] text-[15px]">
-              <caption className="sr-only">Parties</caption>
-              <thead>
-                <tr className="h-10 border-b border-border text-left text-caption text-muted-foreground">
-                  <th scope="col" className="font-normal">Name</th>
-                  <th scope="col" className="hidden font-normal @xl:table-cell">Phone</th>
-                  <th scope="col" className="font-normal">Kind</th>
-                  <th scope="col" className="hidden font-normal @lg:table-cell">Commission</th>
-                  <th scope="col" className="font-normal">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((p) => (
-                  <tr key={p.id} onClick={() => setOpenId(p.id)} className="h-14 cursor-pointer border-b border-border last:border-b-0 hover:bg-muted">
-                    <th scope="row" className="py-1 pr-3 text-left font-normal">
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setOpenId(p.id); }} className="rounded-field text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50">{p.name}</button>
-                    </th>
-                    <td className="hidden pr-3 text-caption tabular-nums text-muted-foreground @xl:table-cell">{p.phone}</td>
-                    <td className="pr-3"><Pill tone="brand">{p.kind === "trader" ? "Trader" : "Seller"}</Pill></td>
-                    <td className="hidden pr-3 tabular-nums @lg:table-cell">{p.kind === "trader" ? describeCommission(p.commission) : "—"}</td>
-                    <td><Pill tone={p.active === false ? "danger" : "neutral"}>{p.active === false ? "Inactive" : "Active"}</Pill></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            id="pa"
+            caption="Parties"
+            columns={[
+              { key: "name", header: "Name", primary: true, cell: (p) => p.name },
+              { key: "phone", header: "Phone", hideBelow: "xl", cell: (p) => <span className="text-caption tabular-nums text-muted-foreground">{p.phone}</span> },
+              { key: "kind", header: "Kind", cell: (p) => <Pill tone="brand">{p.kind === "trader" ? "Trader" : "Seller"}</Pill> },
+              { key: "commission", header: "Commission", hideBelow: "lg", cell: (p) => (p.kind === "trader" ? describeCommission(p.commission) : "—") },
+              { key: "status", header: "Status", cell: (p) => <Pill tone={p.active === false ? "danger" : "neutral"}>{p.active === false ? "Inactive" : "Active"}</Pill> },
+            ]}
+            rows={rows}
+            rowKey={(p) => p.id}
+            pageSize={10}
+            minWidth={420}
+            actionLabel={(p) => `Actions for ${p.name}`}
+            actions={(p) => [{ label: "View", icon: EyeIcon, onSelect: () => setOpenId(p.id) }]}
+          />
         )}
       </div>
       <PartyDrawer id={openId} admin={admin} onClose={() => setOpenId(null)} />
@@ -335,31 +325,22 @@ export function BuyersTab({ admin, initialId }: { admin: string; initialId: stri
         {list.status === "error" && <BlockError onRetry={list.retry} className={BODY} />}
         {list.status === "ready" && rows.length === 0 && <BlockEmpty icon={UsersIcon} text="No buyers match." actionLabel="Clear filters" onAction={() => { setOwner(""); setStatus(""); setQ(""); }} className={BODY} />}
         {list.status === "ready" && rows.length > 0 && (
-          <div className={cn(BODY, "@container overflow-auto")}>
-            <table className="w-full min-w-[420px] text-[15px]">
-              <caption className="sr-only">Buyers across all traders</caption>
-              <thead>
-                <tr className="h-10 border-b border-border text-left text-caption text-muted-foreground">
-                  <th scope="col" className="font-normal">Name</th>
-                  <th scope="col" className="hidden font-normal @lg:table-cell">Phone</th>
-                  <th scope="col" className="font-normal">Owning trader</th>
-                  <th scope="col" className="font-normal">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((b) => (
-                  <tr key={b.id} onClick={() => setOpenId(b.id)} className="h-14 cursor-pointer border-b border-border last:border-b-0 hover:bg-muted">
-                    <th scope="row" className="py-1 pr-3 text-left font-normal">
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setOpenId(b.id); }} className="rounded-field text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50">{b.name}</button>
-                    </th>
-                    <td className="hidden pr-3 text-caption tabular-nums text-muted-foreground @lg:table-cell">{b.phone}</td>
-                    <td className="pr-3">{b.owner ?? "Trader"}</td>
-                    <td><Pill tone={b.active === false ? "danger" : "neutral"}>{b.active === false ? "Inactive" : "Active"}</Pill></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            id="bu"
+            caption="Buyers across all traders"
+            columns={[
+              { key: "name", header: "Name", primary: true, cell: (b) => b.name },
+              { key: "phone", header: "Phone", hideBelow: "lg", cell: (b) => <span className="text-caption tabular-nums text-muted-foreground">{b.phone}</span> },
+              { key: "owner", header: "Owning trader", cell: (b) => b.owner ?? "Trader" },
+              { key: "status", header: "Status", cell: (b) => <Pill tone={b.active === false ? "danger" : "neutral"}>{b.active === false ? "Inactive" : "Active"}</Pill> },
+            ]}
+            rows={rows}
+            rowKey={(b) => b.id}
+            pageSize={10}
+            minWidth={420}
+            actionLabel={(b) => `Actions for ${b.name}`}
+            actions={(b) => [{ label: "View", icon: EyeIcon, onSelect: () => setOpenId(b.id) }]}
+          />
         )}
       </div>
       <BuyerDrawer id={openId} admin={admin} onClose={() => setOpenId(null)} />

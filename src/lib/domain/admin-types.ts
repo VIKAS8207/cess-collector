@@ -51,6 +51,7 @@ export type ActivityType =
   | "gate_exit"
   | "weighment"
   | "receipt"
+  | "allocation"
   | "sale"
   | "return"
   | "payment"
@@ -63,6 +64,7 @@ export const activityTypes: { value: ActivityType; label: string }[] = [
   { value: "gate_exit", label: "Gate exit" },
   { value: "weighment", label: "Weighment" },
   { value: "receipt", label: "Receipt" },
+  { value: "allocation", label: "Allocation" },
   { value: "sale", label: "Sale" },
   { value: "return", label: "Return" },
   { value: "payment", label: "Payment" },
