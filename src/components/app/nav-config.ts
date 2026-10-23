@@ -10,6 +10,7 @@ import {
   LogInIcon,
   LogOutIcon,
   ScaleIcon,
+  SearchCheckIcon,
   SplitIcon,
   TruckIcon,
   UserIcon,
@@ -46,6 +47,11 @@ export const navByRole: Record<RoleId, NavGroup[]> = {
       ],
     },
     { label: "Insights", items: [{ label: "Report", href: "/report", icon: FileBarChartIcon }] },
+  ],
+  driver: [{ label: "My Trips", items: [dashboard] }],
+  marketplace: [
+    { label: "Overview", items: [dashboard] },
+    { label: "Market", items: [{ label: "Trace Truck", href: "/trace", icon: SearchCheckIcon }] },
   ],
   weighbridge_operator: [
     { label: "Overview", items: [dashboard] },

@@ -256,7 +256,11 @@ export function buildAgentSeed(movements: Movement[], now: number): AgentData {
   const allocations: Allocation[] = [];
   const insideNow = movements.filter((m) => m.status === "Inside" && m.plate && m.weighments?.length);
   const past = movements.filter((m) => m.status === "Exited" && m.plate && m.weighments?.length).slice(0, 6);
-  const inScope = [...insideNow, ...past];
+  // The demo drivers get goods handled on their earlier trips too, so their history shows a commission agent.
+  const demoDrivers = movements
+    .filter((m) => m.status === "Exited" && m.plate && m.weighments?.length && (m.driverName === "Ramesh Gaikwad" || m.driverName === "Suresh Jadhav") && !past.includes(m))
+    .slice(0, 8);
+  const inScope = [...insideNow, ...past, ...demoDrivers];
   inScope.forEach((m, i) => {
     const product = m.weighments?.[0]?.product ?? pick(["Basmati rice", "Wheat", "Sugar", "Onion", "Toor dal"]);
     const unit: Allocation["unit"] = product === "Onion" ? "kg" : "bags";
@@ -283,8 +287,8 @@ export function buildAgentSeed(movements: Movement[], now: number): AgentData {
         partyId: t.id,
         partyName: t.name,
         at: Math.min(at, now),
-        agent: "Ravi Kumar",
-        supplier: sellers[i % sellers.length].name,
+        agent: k % 2 === 0 ? "Ravi Kumar" : "Imran Khan",
+        supplier: sellers[(i + k) % sellers.length].name,
         origin: pick(["Nashik", "Pune", "Indore", "Latur", "Sangli"]),
         challanNo: `CH-${digits(5)}`,
         bridgeNetKg: m.weighments?.length === 2 ? m.weighments[1].kg - m.weighments[0].kg : null,
@@ -296,7 +300,7 @@ export function buildAgentSeed(movements: Movement[], now: number): AgentData {
         cessMode: k === 0 && i % 2 === 0 ? undefined : pick(["cash", "upi", "bank"] as const),
         cessRef: "",
         cessReceiptNo: k === 0 && i % 2 === 0 ? "" : `CR-${1000 + allocations.length + 1}`,
-        cessReceivedBy: k === 0 && i % 2 === 0 ? "" : "Ravi Kumar",
+        cessReceivedBy: k === 0 && i % 2 === 0 ? "" : k % 2 === 0 ? "Ravi Kumar" : "Imran Khan",
       });
     }
   });

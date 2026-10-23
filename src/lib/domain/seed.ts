@@ -72,6 +72,10 @@ export function buildSeed(now: number): { movements: Movement[]; events: Excepti
     bank: pick(banks),
   }));
 
+  // Two fixed drivers for the Driver role demo: the first has a truck inside, the second only past trips.
+  fleet[0].driverName = "Ramesh Gaikwad";
+  fleet[1].driverName = "Suresh Jadhav";
+
   const movements: Movement[] = [];
   let seq = 1000;
   const insidePlates = new Set<string>();
@@ -82,7 +86,7 @@ export function buildSeed(now: number): { movements: Movement[]; events: Excepti
     const audit = [{ at: entryAt, by: operator, action: "Entry recorded" }];
     if (exitAt) audit.push({ at: exitAt, by: operator, action: "Exit approved" });
     // Trucks inside for a while have always been weighed; the newest ones are left for the weight bridge demo.
-    const weighed = exitAt ? r() < 0.5 : now - entryAt > 40 * MINUTE;
+    const weighed = exitAt ? r() < 0.5 || f.driverName === "Ramesh Gaikwad" || f.driverName === "Suresh Jadhav" : now - entryAt > 40 * MINUTE;
     const grossKg = Math.round(18000 + r() * 24000);
     const tareKg = Math.round(grossKg * (0.28 + r() * 0.17));
     const bridge = r() < 0.8;
@@ -142,9 +146,9 @@ export function buildSeed(now: number): { movements: Movement[]; events: Excepti
   // Vehicles currently inside, including two over-stays.
   const insideOffsets = [12, 25, 41, 55, 70, 95, 120, 150, 185, 230, 290, 360].map((m) => m * MINUTE);
   insideOffsets.push(9 * HOUR + 10 * MINUTE, 27 * HOUR);
-  for (const offset of insideOffsets) {
-    let f = pick(fleet);
-    while (insidePlates.has(f.plate)) f = pick(fleet);
+  for (const [n, offset] of insideOffsets.entries()) {
+    let f = n === 6 ? fleet[0] : pick(fleet);
+    while (insidePlates.has(f.plate) || (n !== 6 && (f === fleet[0] || f === fleet[1]))) f = pick(fleet);
     insidePlates.add(f.plate);
     movements.push(make(f, now - offset, null));
   }

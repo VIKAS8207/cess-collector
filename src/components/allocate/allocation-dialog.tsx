@@ -28,7 +28,7 @@ export function AllocationDialog({ id, onClose }: { id: string | null; onClose: 
         <Dialog.Backdrop className="fixed inset-0 z-[70] bg-foreground/40 transition-opacity duration-200 data-[starting-style]:opacity-0" />
         <Dialog.Popup
           data-print-hide
-          className="fixed top-1/2 left-1/2 z-[80] flex max-h-[90vh] w-[min(92vw,560px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-6 overflow-y-auto rounded-card border border-border bg-background p-6 shadow-panel outline-none transition-[opacity,transform] duration-200 data-[starting-style]:scale-95 data-[starting-style]:opacity-0"
+          className="fixed top-1/2 left-1/2 z-[80] flex max-h-[90vh] w-[min(94vw,880px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-6 overflow-y-auto rounded-card border border-border bg-background p-6 shadow-panel outline-none transition-[opacity,transform] duration-200 data-[starting-style]:scale-95 data-[starting-style]:opacity-0"
         >
           {a && (
             <>
@@ -44,7 +44,7 @@ export function AllocationDialog({ id, onClose }: { id: string | null; onClose: 
                 </Dialog.Close>
               </div>
 
-              <dl className="grid gap-4 sm:grid-cols-2">
+              <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <Fact label="Trader" value={a.partyName} />
                 <Fact label="Driver" value={a.driverName} />
                 <Fact label="Product" value={a.product} />
@@ -57,7 +57,7 @@ export function AllocationDialog({ id, onClose }: { id: string | null; onClose: 
 
               <section aria-label="Consignment and buyer" className="flex flex-col gap-3">
                 <h3 className="text-heading-md text-foreground">Consignment and buyer</h3>
-                <dl className="grid gap-4 sm:grid-cols-2">
+                <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   <Fact label="Supplier" value={a.supplier} />
                   <Fact label="Origin" value={a.origin} />
                   <Fact label="Seller challan or invoice" value={a.challanNo} />
@@ -70,7 +70,7 @@ export function AllocationDialog({ id, onClose }: { id: string | null; onClose: 
 
               <section aria-label="CESS collection" className="flex flex-col gap-3">
                 <h3 className="text-heading-md text-foreground">CESS collection</h3>
-                <dl className="grid gap-4 sm:grid-cols-2">
+                <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   <Fact label="Status" value={cessStatusLabel[a.cessStatus]} />
                   <Fact label="Received" value={<span className="tabular-nums">{formatInr(a.cessPaid)}</span>} />
                   <Fact label="Pending" value={<span className="tabular-nums">{formatInr(Math.max(0, a.cess - a.cessPaid))}</span>} />
@@ -83,7 +83,7 @@ export function AllocationDialog({ id, onClose }: { id: string | null; onClose: 
 
               {a.photo && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={a.photo} alt="Photo of the truck's product" className="aspect-8/5 w-full rounded-field border border-border object-cover" />
+                <img src={a.photo} alt="Photo of the truck's product" className="aspect-8/5 w-full max-w-md rounded-field border border-border object-cover" />
               )}
 
               <div>

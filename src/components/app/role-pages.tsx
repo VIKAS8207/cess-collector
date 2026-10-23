@@ -11,6 +11,8 @@ import { TraderSalesPage } from "@/components/trader/sales/trader-sales-page";
 import { AgentReportPage } from "@/components/agent/report/agent-report-page";
 import { DashboardPage } from "@/components/dashboard/dashboard-page";
 import { ReportPage } from "@/components/report/report-page";
+import { DriverHome } from "@/components/driver/driver-home";
+import { MarketDashboard } from "@/components/market/market-dashboard";
 import { WeighDashboard } from "@/components/weigh/weigh-dashboard";
 import { useAuth } from "@/lib/auth-store";
 
@@ -21,6 +23,8 @@ export function RoleDashboard() {
   if (user?.roleId === "trader") return <TraderDashboard />;
   if (user?.roleId === "admin") return <AdminDashboard />;
   if (user?.roleId === "weighbridge_operator") return <WeighDashboard />;
+  if (user?.roleId === "marketplace") return <MarketDashboard />;
+  if (user?.roleId === "driver") return <DriverHome />;
   return <DashboardPage />;
 }
 
