@@ -71,11 +71,11 @@ export type TraderKpis = {
   purchasedDelta: number | null;
   sold: number;
   soldDelta: number | null;
-  saasComputed: number;
-  saasComputedDelta: number | null;
-  saasCollected: number;
-  saasCollectedDelta: number | null;
-  saasPending: number;
+  cessComputed: number;
+  cessComputedDelta: number | null;
+  cessCollected: number;
+  cessCollectedDelta: number | null;
+  cessPending: number;
   lots: number;
   top: { item: string; unit: Unit; qty: number } | null;
 };
@@ -84,8 +84,8 @@ function periodTotals(r: Range) {
   return {
     purchased: stockLines().filter((s) => inRange(s.date, r)).reduce((a, s) => a + s.qty * s.rate, 0),
     sold: allBills().filter((b) => inRange(b.at, r)).reduce((a, b) => a + b.goods, 0),
-    computed: allBills().filter((b) => inRange(b.at, r)).reduce((a, b) => a + b.saas, 0),
-    collected: allBuyerPayments().filter((p) => inRange(p.at, r)).reduce((a, p) => a + p.saas, 0),
+    computed: allBills().filter((b) => inRange(b.at, r)).reduce((a, b) => a + b.cess, 0),
+    collected: allBuyerPayments().filter((p) => inRange(p.at, r)).reduce((a, p) => a + p.cess, 0),
   };
 }
 
@@ -100,11 +100,11 @@ export function getTraderKpis(range: Range, opts?: Opts): Promise<TraderKpis> {
       purchasedDelta: pct(cur.purchased, prev.purchased),
       sold: cur.sold,
       soldDelta: pct(cur.sold, prev.sold),
-      saasComputed: cur.computed,
-      saasComputedDelta: pct(cur.computed, prev.computed),
-      saasCollected: cur.collected,
-      saasCollectedDelta: pct(cur.collected, prev.collected),
-      saasPending: allBuyers().reduce((a, b) => a + Math.max(0, buyerFinance(b.id).saasDue), 0),
+      cessComputed: cur.computed,
+      cessComputedDelta: pct(cur.computed, prev.computed),
+      cessCollected: cur.collected,
+      cessCollectedDelta: pct(cur.collected, prev.collected),
+      cessPending: allBuyers().reduce((a, b) => a + Math.max(0, buyerFinance(b.id).cessDue), 0),
       lots: open.length,
       top: top ? { item: top.item, unit: top.unit, qty: top.remaining } : null,
     };
@@ -121,7 +121,7 @@ export function buildTraderSeries(range: Range, bills: Bill[], payments: BuyerPa
   const collected = new Array<number>(n).fill(0);
   const idx = (t: number) => Math.floor((t - range.from) / step);
   for (const b of bills) if (inRange(b.at, range)) sold[idx(b.at)] += b.goods;
-  for (const p of payments) if (inRange(p.at, range)) collected[idx(p.at)] += p.saas;
+  for (const p of payments) if (inRange(p.at, range)) collected[idx(p.at)] += p.cess;
   return {
     labels: Array.from({ length: n }, (_, i) => (byHour ? hourLabel(i % 24) : dayFmt.format(range.from + i * DAY))),
     sold,
@@ -141,7 +141,7 @@ export function getStockWaiting(opts?: Opts): Promise<StockLine[]> {
 export type PendingRow = {
   buyer: Buyer;
   goodsDue: number;
-  saasDue: number;
+  cessDue: number;
   totalDue: number;
   since: number | null;
   days: number;
@@ -156,7 +156,7 @@ function pendingRows(now: number): PendingRow[] {
       return {
         buyer,
         goodsDue: f.goodsDue,
-        saasDue: f.saasDue,
+        cessDue: f.cessDue,
         totalDue: f.totalDue,
         since,
         days: since ? Math.floor((now - since) / DAY) : 0,
@@ -172,7 +172,7 @@ export function getPendingCollections(opts?: Opts): Promise<PendingRow[]> {
 
 export type TraderAttention = {
   id: string;
-  kind: "overdue" | "saas-adjust" | "wastage" | "blocked";
+  kind: "overdue" | "cess-adjust" | "wastage" | "blocked";
   title: string;
   detail: string;
   at: number;
@@ -191,8 +191,8 @@ export function getTraderAttention(opts?: Opts): Promise<TraderAttention[]> {
         out.push({ id: `od-${b.id}`, kind: "overdue", title: `${b.name} · Overdue`, detail: `Unpaid since ${dayFmt.format(since)}, over ${overdueDays()} days.`, at: since + overdueDays() * DAY, buyerId: b.id });
       }
     }
-    for (const r of allBillReturns().filter((x) => x.saasAdjust > 0)) {
-      out.push({ id: `sa-${r.id}`, kind: "saas-adjust", title: `${buyerById(r.buyerId)?.name ?? "Buyer"} · Saas adjustment pending`, detail: `Return of ${r.item} left ₹${r.saasAdjust} of collected saas to adjust.`, at: r.at, buyerId: r.buyerId, billId: r.billId });
+    for (const r of allBillReturns().filter((x) => x.cessAdjust > 0)) {
+      out.push({ id: `sa-${r.id}`, kind: "cess-adjust", title: `${buyerById(r.buyerId)?.name ?? "Buyer"} · CESS adjustment pending`, detail: `Return of ${r.item} left ₹${r.cessAdjust} of collected CESS to adjust.`, at: r.at, buyerId: r.buyerId, billId: r.billId });
     }
     for (const s of stockLines().filter((x) => x.wastage > 0)) {
       out.push({ id: `ws-${s.id}`, kind: "wastage", title: `${s.item} · Wastage`, detail: `${s.wastage} ${s.unit} written off.`, at: s.date, stockId: s.id });
@@ -311,15 +311,15 @@ export type BuyerRow = {
   buyer: Buyer;
   bills: number;
   goodsDue: number;
-  saasDue: number;
+  cessDue: number;
   totalDue: number;
   paid: number;
   status: BuyerStatus;
 };
 
-export type SaasSummary = { computed: number; collected: number; pending: number };
+export type CessSummary = { computed: number; collected: number; pending: number };
 
-export type CollectionsData = { rows: BuyerRow[]; saas: SaasSummary };
+export type CollectionsData = { rows: BuyerRow[]; cess: CessSummary };
 
 export function getCollections(range: Range, q: string, opts?: Opts): Promise<CollectionsData> {
   return sim(opts, () => {
@@ -333,7 +333,7 @@ export function getCollections(range: Range, q: string, opts?: Opts): Promise<Co
           buyer,
           bills: allBills().filter((b) => b.buyerId === buyer.id && inRange(b.at, range)).length,
           goodsDue: f.goodsDue,
-          saasDue: f.saasDue,
+          cessDue: f.cessDue,
           totalDue: f.totalDue,
           paid: allBuyerPayments().filter((p) => p.buyerId === buyer.id && inRange(p.at, range)).reduce((a, p) => a + p.amount, 0),
           status: buyerStatus(buyer.id, now),
@@ -342,25 +342,25 @@ export function getCollections(range: Range, q: string, opts?: Opts): Promise<Co
     const cur = periodTotals(range);
     return {
       rows,
-      saas: {
+      cess: {
         computed: cur.computed,
         collected: cur.collected,
-        pending: allBuyers().reduce((a, b) => a + Math.max(0, buyerFinance(b.id).saasDue), 0),
+        pending: allBuyers().reduce((a, b) => a + Math.max(0, buyerFinance(b.id).cessDue), 0),
       },
     };
   });
 }
 
-export type SaasMovement = { id: string; at: number; buyer: string; label: string; amount: number };
+export type CessMovement = { id: string; at: number; buyer: string; label: string; amount: number };
 
-export function getSaasMovements(range: Range, kind: "computed" | "collected" | "pending", opts?: Opts): Promise<SaasMovement[]> {
+export function getCessMovements(range: Range, kind: "computed" | "collected" | "pending", opts?: Opts): Promise<CessMovement[]> {
   return sim(opts, () => {
     if (kind === "computed")
-      return allBills().filter((b) => inRange(b.at, range) && b.saas > 0).map((b) => ({ id: b.id, at: b.at, buyer: b.buyerName, label: `Bill ${b.no}`, amount: b.saas }));
+      return allBills().filter((b) => inRange(b.at, range) && b.cess > 0).map((b) => ({ id: b.id, at: b.at, buyer: b.buyerName, label: `Bill ${b.no}`, amount: b.cess }));
     if (kind === "collected")
-      return allBuyerPayments().filter((p) => inRange(p.at, range) && p.saas > 0).map((p) => ({ id: p.id, at: p.at, buyer: getBuyer(p.buyerId)?.name ?? "", label: `Payment · ${p.mode}`, amount: p.saas }));
+      return allBuyerPayments().filter((p) => inRange(p.at, range) && p.cess > 0).map((p) => ({ id: p.id, at: p.at, buyer: getBuyer(p.buyerId)?.name ?? "", label: `Payment · ${p.mode}`, amount: p.cess }));
     return allBuyers()
-      .map((b) => ({ id: b.id, at: unpaidSince(b.id) ?? 0, buyer: b.name, label: "Saas still due", amount: buyerFinance(b.id).saasDue }))
+      .map((b) => ({ id: b.id, at: unpaidSince(b.id) ?? 0, buyer: b.name, label: "CESS still due", amount: buyerFinance(b.id).cessDue }))
       .filter((m) => m.amount > 0.005)
       .sort((a, b) => b.amount - a.amount);
   }).then((rows) => rows.sort((a, b) => b.at - a.at));
@@ -387,7 +387,7 @@ export async function submitBuyerPayment(input: PaymentInput, by: string) {
 
 // ---------- reports ----------
 
-export type TraderReportKind = "purchase-sale" | "saas" | "balances" | "stock";
+export type TraderReportKind = "purchase-sale" | "cess" | "balances" | "stock";
 export type TraderReportFilters = { range: Range; buyerId?: string; item?: string; status?: string };
 
 export type ItemRow = { item: string; unit: Unit; purchased: number; sold: number; returned: number; wastage: number; left: number; valuePurchased: number; valueSold: number; margin: number };
@@ -395,8 +395,8 @@ export type DayRow = { label: string; purchased: number; sold: number; margin: n
 
 export type TraderReportData =
   | { kind: "purchase-sale"; items: ItemRow[]; days: DayRow[]; totals: { purchased: number; sold: number; margin: number } }
-  | { kind: "saas"; days: { label: string; computed: number; collected: number; pending: number }[]; buyers: { buyer: Buyer; computed: number; collected: number; pending: number }[]; totals: { computed: number; collected: number; pending: number }; rateNote: string }
-  | { kind: "balances"; rows: { buyer: Buyer; opening: number; bills: number; returns: number; payments: number; goodsClosing: number; saasClosing: number; closing: number; overdue: boolean }[] }
+  | { kind: "cess"; days: { label: string; computed: number; collected: number; pending: number }[]; buyers: { buyer: Buyer; computed: number; collected: number; pending: number }[]; totals: { computed: number; collected: number; pending: number }; rateNote: string }
+  | { kind: "balances"; rows: { buyer: Buyer; opening: number; bills: number; returns: number; payments: number; goodsClosing: number; cessClosing: number; closing: number; overdue: boolean }[] }
   | { kind: "stock"; rows: { line: StockLine; value: number; ageDays: number; flags: string[] }[]; totalValue: number };
 
 export function getTraderReport(kind: TraderReportKind, f: TraderReportFilters, rateNote: string, opts?: Opts): Promise<TraderReportData> {
@@ -458,7 +458,7 @@ export function getTraderReport(kind: TraderReportKind, f: TraderReportFilters, 
       };
     }
 
-    if (kind === "saas") {
+    if (kind === "cess") {
       const status = f.status as BillStatus | undefined;
       const sb = status ? bills.filter((b) => billStatus(b) === status) : bills;
       const dayMap = new Map<number, { label: string; computed: number; collected: number; pending: number }>();
@@ -467,16 +467,16 @@ export function getTraderReport(kind: TraderReportKind, f: TraderReportFilters, 
         if (!dayMap.has(d)) dayMap.set(d, { label: dayFmt.format(d), computed: 0, collected: 0, pending: 0 });
         return dayMap.get(d)!;
       };
-      for (const b of sb) day(b.at).computed += b.saas;
-      for (const p of pays) day(p.at).collected += p.saas;
+      for (const b of sb) day(b.at).computed += b.cess;
+      for (const p of pays) day(p.at).collected += p.cess;
       for (const d of dayMap.values()) d.pending = r2(d.computed - d.collected);
       const buyers = allBuyers()
         .filter((b) => !f.buyerId || b.id === f.buyerId)
         .map((buyer) => ({
           buyer,
-          computed: sb.filter((b) => b.buyerId === buyer.id).reduce((a, b) => a + b.saas, 0),
-          collected: pays.filter((p) => p.buyerId === buyer.id).reduce((a, p) => a + p.saas, 0),
-          pending: Math.max(0, buyerFinance(buyer.id).saasDue),
+          computed: sb.filter((b) => b.buyerId === buyer.id).reduce((a, b) => a + b.cess, 0),
+          collected: pays.filter((p) => p.buyerId === buyer.id).reduce((a, p) => a + p.cess, 0),
+          pending: Math.max(0, buyerFinance(buyer.id).cessDue),
         }))
         .filter((b) => b.computed || b.collected || b.pending);
       return {
@@ -498,10 +498,10 @@ export function getTraderReport(kind: TraderReportKind, f: TraderReportFilters, 
             buyer,
             opening: open.totalDue,
             bills: allBills().filter((b) => b.buyerId === buyer.id && inRange(b.at, f.range)).reduce((a, b) => a + b.payable, 0),
-            returns: allBillReturns().filter((r) => r.buyerId === buyer.id && inRange(r.at, f.range)).reduce((a, r) => a + r.goodsCredit + r.saasCredit, 0),
+            returns: allBillReturns().filter((r) => r.buyerId === buyer.id && inRange(r.at, f.range)).reduce((a, r) => a + r.goodsCredit + r.cessCredit, 0),
             payments: allBuyerPayments().filter((p) => p.buyerId === buyer.id && inRange(p.at, f.range)).reduce((a, p) => a + p.amount, 0),
             goodsClosing: close.goodsDue,
-            saasClosing: close.saasDue,
+            cessClosing: close.cessDue,
             closing: close.totalDue,
             overdue: isBuyerOverdue(buyer.id, now),
           };

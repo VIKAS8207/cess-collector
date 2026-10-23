@@ -6,7 +6,14 @@ import { createStore, useStore } from "@/lib/storage-store";
 import { findUserByEmail } from "@/lib/domain/admin-store";
 import { DEFAULT_ROLE, parseRole, roleLabel, type RoleId } from "@/lib/roles";
 
-export type User = { email: string; name: string; role: string; roleId: RoleId };
+export type User = {
+  email: string;
+  name: string;
+  role: string;
+  roleId: RoleId;
+  /** True for a signed-in admin, even while viewing the app as another role. */
+  isAdmin?: boolean;
+};
 
 const sessionStore = createStore("sas:session", "local");
 let signedOutOnPurpose = false;
@@ -40,6 +47,8 @@ type AuthContextValue = {
   /** undefined = still reading storage, null = signed out */
   user: User | null | undefined;
   signIn: (email: string, remember: boolean, roleId?: RoleId) => void;
+  /** Admin only: opens the app as another role. Pass "admin" to go back. */
+  viewAs: (roleId: RoleId) => void;
   signOut: () => void;
 };
 
@@ -54,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (raw === null) return null;
     try {
       const u = JSON.parse(raw) as User;
-      return { ...u, roleId: parseRole(u.roleId) };
+      return { ...u, roleId: parseRole(u.roleId), isAdmin: u.isAdmin ?? findUserByEmail(u.email)?.role === "admin" };
     } catch {
       return null;
     }
@@ -62,8 +71,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = useCallback((email: string, remember: boolean, roleId?: RoleId) => {
     signedOutOnPurpose = false;
-    sessionStore.set(JSON.stringify(userFromEmail(email, roleId)), { memoryOnly: !remember });
+    const known = findUserByEmail(email);
+    const isAdmin = roleId === "admin" || known?.role === "admin";
+    sessionStore.set(JSON.stringify({ ...userFromEmail(email, roleId), isAdmin }), { memoryOnly: !remember });
   }, []);
+
+  const viewAs = useCallback(
+    (roleId: RoleId) => {
+      if (!user?.isAdmin) return;
+      sessionStore.set(JSON.stringify({ ...user, roleId, role: roleLabel(roleId) }), { memoryOnly: false });
+      router.push("/dashboard");
+    },
+    [user, router]
+  );
 
   const signOut = useCallback(() => {
     signedOutOnPurpose = true;
@@ -71,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.replace("/login");
   }, [router]);
 
-  const value = useMemo(() => ({ user, signIn, signOut }), [user, signIn, signOut]);
+  const value = useMemo(() => ({ user, signIn, viewAs, signOut }), [user, signIn, viewAs, signOut]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

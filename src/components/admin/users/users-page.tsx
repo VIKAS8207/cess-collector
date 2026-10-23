@@ -64,7 +64,7 @@ export function UsersPage() {
         actions={
           <Button onClick={() => setCreating(true)}>
             <PlusIcon aria-hidden="true" />
-            Create user
+            Create credentials
           </Button>
         }
       />
@@ -103,7 +103,7 @@ export function UsersPage() {
             <BlockEmpty
               icon={UsersIcon}
               text="No users match."
-              actionLabel={filtered ? "Clear filters" : "Create user"}
+              actionLabel={filtered ? "Clear filters" : "Create credentials"}
               onAction={() => {
                 if (filtered) {
                   setRole("");

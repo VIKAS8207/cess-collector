@@ -19,13 +19,13 @@ import {
   submitBusiness,
   submitGateActive,
   submitRenameGate,
-  submitSaas,
+  submitCess,
   submitThresholds,
   type SettingsSnapshot,
 } from "@/lib/api/admin";
 import { forcedErrors } from "@/lib/api/gate";
 import { toNum } from "@/lib/domain/agent-math";
-import { describeSaas } from "@/lib/domain/trader-math";
+import { describeCess } from "@/lib/domain/trader-math";
 import { formatStamp } from "@/lib/format";
 import { useLiveQuery } from "@/hooks/use-live-query";
 import { cn } from "cn";
@@ -54,7 +54,7 @@ function CardSkeleton() {
   );
 }
 
-function SaasCard({ s, admin }: { s: SettingsSnapshot["saas"]; admin: string }) {
+function CessCard({ s, admin }: { s: SettingsSnapshot["cess"]; admin: string }) {
   const toast = useToast();
   const [enabled, setEnabled] = useState(s.enabled);
   const [type, setType] = useState<"percent" | "flat">(s.type);
@@ -72,8 +72,8 @@ function SaasCard({ s, admin }: { s: SettingsSnapshot["saas"]; admin: string }) 
     setSaving(true);
     try {
       maybeFail();
-      await submitSaas({ enabled, type, rate: enabled ? n : s.rate }, admin);
-      toast.push(`Saas rate saved: ${describeSaas({ enabled, type, rate: enabled ? n : s.rate, since: 0 })}.`);
+      await submitCess({ enabled, type, rate: enabled ? n : s.rate }, admin);
+      toast.push(`CESS rate saved: ${describeCess({ enabled, type, rate: enabled ? n : s.rate, since: 0 })}.`);
       setAttempted(false);
     } catch {
       setFailed(true);
@@ -84,14 +84,14 @@ function SaasCard({ s, admin }: { s: SettingsSnapshot["saas"]; admin: string }) 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-heading-md">Saas rate</CardTitle>
+        <CardTitle className="text-heading-md">CESS rate</CardTitle>
         <CardDescription>One rate for every trader. Traders see it as read-only.</CardDescription>
       </CardHeader>
       <form noValidate className="flex flex-col gap-4 px-(--card-spacing)" onSubmit={(e) => { e.preventDefault(); void save(); }}>
-        <FormBanner message={failed ? "We couldn't save the saas rate. Try again." : null} action={failed ? <Button type="button" variant="outline" onClick={() => void save()}>Try again</Button> : undefined} />
+        <FormBanner message={failed ? "We couldn't save the CESS rate. Try again." : null} action={failed ? <Button type="button" variant="outline" onClick={() => void save()}>Try again</Button> : undefined} />
         <label className="flex min-h-10 cursor-pointer items-center gap-3 text-[15px]">
           <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} disabled={saving} className="size-4 rounded-xs accent-primary" />
-          Saas is switched on
+          CESS is switched on
         </label>
         <div className="grid gap-4 sm:grid-cols-2">
           <SelectField id="sx-type" label="Rate type" value={type} onChange={(v) => setType(v as "percent" | "flat")} disabled={!enabled || saving} options={[{ value: "percent", label: "% of goods sale value" }, { value: "flat", label: "Flat per sale" }]} />
@@ -104,7 +104,7 @@ function SaasCard({ s, admin }: { s: SettingsSnapshot["saas"]; admin: string }) 
         <p className="text-caption text-muted-foreground">Applies to new sales only. Past bills keep their snapshot.</p>
         <Button type="submit" className="sm:self-end" disabled={saving} aria-busy={saving}>
           {saving && <Spinner />}
-          Save saas rate
+          Save CESS rate
         </Button>
       </form>
     </Card>
@@ -327,7 +327,7 @@ export function SettingsPage() {
       )}
       {q.status === "ready" && (
         <div className={cn("grid items-start gap-6 lg:grid-cols-2")}>
-          <SaasCard key={`s-${q.data.saas.lastChangedAt}-${q.data.saas.rate}-${q.data.saas.type}-${q.data.saas.enabled}`} s={q.data.saas} admin={admin} />
+          <CessCard key={`s-${q.data.cess.lastChangedAt}-${q.data.cess.rate}-${q.data.cess.type}-${q.data.cess.enabled}`} s={q.data.cess} admin={admin} />
           <ThresholdsCard key={`t-${q.data.overstayHours}-${q.data.overdueDays}-${q.data.otpCooldownSeconds}`} s={q.data} admin={admin} />
           <GatesCard gates={q.data.gates} admin={admin} />
           <BusinessCard key={`b-${JSON.stringify(q.data.business)}`} b={q.data.business} admin={admin} />

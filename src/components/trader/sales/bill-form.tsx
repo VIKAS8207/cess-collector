@@ -10,12 +10,12 @@ import { Spinner } from "@/components/ui/spinner";
 import { FormBanner } from "@/components/auth/form-banner";
 import { TextField } from "@/components/auth/text-field";
 import { BuyerPicker } from "@/components/trader/sales/buyer-picker";
-import { SaasBasis, SaasLine } from "@/components/trader/pills";
+import { CessBasis, CessLine } from "@/components/trader/pills";
 import { submitBill } from "@/lib/api/trader";
 import { toNum } from "@/lib/domain/agent-math";
 import { useStoreVersion } from "@/lib/domain/store";
-import { computeSaas } from "@/lib/domain/trader-math";
-import { nextBillNo, saasConfig, stockLines } from "@/lib/domain/trader-store";
+import { computeCess } from "@/lib/domain/trader-math";
+import { nextBillNo, cessConfig, stockLines } from "@/lib/domain/trader-store";
 import { MAX_BILL_LINES, type Bill } from "@/lib/domain/trader-types";
 import { formatInr, formatQty, formatStamp } from "@/lib/format";
 import { useNow } from "@/hooks/use-now";
@@ -46,7 +46,7 @@ export function BillForm({
   const [failed, setFailed] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
-  const cfg = saasConfig();
+  const cfg = cessConfig();
   const stock = stockLines();
   const open = stock.filter((s) => s.remaining > 0);
   const text = filter.trim().toLowerCase();
@@ -67,8 +67,8 @@ export function BillForm({
   });
 
   const goodsTotal = calc.reduce((a, c) => a + c.goods, 0);
-  const saas = computeSaas(cfg, goodsTotal);
-  const payable = goodsTotal + saas;
+  const cess = computeCess(cfg, goodsTotal);
+  const payable = goodsTotal + cess;
   const linesValid = calc.length > 0 && calc.every((c) => !c.errors.stock && !c.errors.qty && !c.errors.rate);
   const valid = !!buyerId && linesValid;
 
@@ -226,16 +226,16 @@ export function BillForm({
               <dd className="tabular-nums text-foreground">{formatInr(goodsTotal)}</dd>
             </div>
             <div className="flex items-baseline justify-between gap-3">
-              <dt className="text-muted-foreground">Saas (admin rate)</dt>
-              <dd className="tabular-nums text-foreground">{formatInr(saas)}</dd>
+              <dt className="text-muted-foreground">CESS (admin rate)</dt>
+              <dd className="tabular-nums text-foreground">{formatInr(cess)}</dd>
             </div>
             <div className="flex items-baseline justify-between gap-3 border-t border-border pt-2">
               <dt className="text-foreground">Buyer payable</dt>
               <dd className="text-heading-md font-normal tabular-nums text-foreground">{formatInr(payable)}</dd>
             </div>
           </dl>
-          <SaasLine amount={saas} className="text-sm text-muted-foreground" />
-          <p className="text-caption text-muted-foreground"><SaasBasis /></p>
+          <CessLine amount={cess} className="text-sm text-muted-foreground" />
+          <p className="text-caption text-muted-foreground"><CessBasis /></p>
         </section>
 
         <section className="flex flex-col gap-4">

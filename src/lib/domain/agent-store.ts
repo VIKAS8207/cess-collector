@@ -1,7 +1,7 @@
 import { commit, db, getMovement } from "./store";
 import { overdueDays } from "./settings";
 import { cessFor, commissionFor } from "./agent-math";
-import { saasSettings } from "./settings";
+import { cessSettings } from "./settings";
 import { DAY } from "./types";
 import {
   type AgentEvent,
@@ -480,7 +480,7 @@ export function createAllocations(input: AllocationInput, by: string): Allocatio
     }
     if (!l.billNo.trim()) return { ok: false, code: "invalid", message: `Enter the bill number for ${party.name}.` };
     const amount = Math.round(l.qty * l.rate * 100) / 100;
-    const cess = cessFor(saasSettings(), amount);
+    const cess = cessFor(cessSettings(), amount);
     if (l.cessReceived < 0 || l.cessReceived > cess.amount) {
       return { ok: false, code: "invalid", message: `CESS received for ${party.name} cannot be more than ${cess.amount}.` };
     }

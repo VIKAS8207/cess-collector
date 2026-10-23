@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Tooltip } from "@base-ui/react/tooltip";
-import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon, EyeIcon, ShieldCheckIcon } from "lucide-react";
 import { Brand } from "@/components/brand";
 import { UserMenu } from "@/components/app/user-menu";
 import { isActive, navByRole, type NavItem } from "@/components/app/nav-config";
 import { useAuth } from "@/lib/auth-store";
+import { roles } from "@/lib/roles";
 import { cn } from "cn";
 
 function NavLink({
@@ -95,7 +96,7 @@ export function SidebarContent({
   /** Desktop only: shows the open/close control at the bottom of the sidebar. */
   onToggleCollapsed?: () => void;
 }) {
-  const { user } = useAuth();
+  const { user, viewAs } = useAuth();
   const navGroups = navByRole[user?.roleId ?? "gate_operator"];
   return (
     <Tooltip.Provider delay={0}>
@@ -148,6 +149,39 @@ export function SidebarContent({
                 <NavTree items={group.items} collapsed={collapsed} onNavigate={onNavigate} />
               </div>
             ))}
+            {user?.isAdmin && (
+              <div className="flex flex-col gap-2 border-t border-border pt-4">
+                <h2 className={cn("px-3 text-[11px] tracking-[0.4px] text-muted-foreground uppercase", collapsed && "sr-only")}>View as role</h2>
+                <ul className="flex flex-col gap-1">
+                  {roles.map((r) => {
+                    const current = user.roleId === r.id;
+                    const Icon = r.id === "admin" ? ShieldCheckIcon : EyeIcon;
+                    return (
+                      <li key={r.id} className={cn(collapsed && "flex justify-center")}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            viewAs(r.id);
+                            onNavigate?.();
+                          }}
+                          aria-pressed={current}
+                          title={`View as ${r.label}`}
+                          aria-label={r.id === "admin" ? "Switch to Admin" : `View as ${r.label}`}
+                          className={cn(
+                            "flex h-10 items-center gap-3 rounded-[5px] text-left text-[15px] outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+                            collapsed ? "w-10 justify-center" : "w-full px-3",
+                            current ? "bg-tag/40 text-primary" : "text-foreground hover:bg-muted"
+                          )}
+                        >
+                          <Icon aria-hidden="true" className="size-[18px] shrink-0" />
+                          <span className={cn("truncate", collapsed && "sr-only")}>{r.id === "admin" ? (current ? "Admin" : "Back to Admin") : r.label}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
           </div>
         </nav>
         <div className={cn("shrink-0 border-t border-border p-3")}>

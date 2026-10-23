@@ -62,13 +62,13 @@ function csvFor(d: AdminReportData): (string | number)[][] {
       ["Goods received (estimated)", d.totals.receivedValue],
       ["Goods sold", d.totals.soldValue],
       ["Commission earned", d.totals.commission],
-      ["Saas computed", d.totals.saasComputed],
-      ["Saas collected", d.totals.saasCollected],
+      ["CESS computed", d.totals.cessComputed],
+      ["CESS collected", d.totals.cessCollected],
       [],
       ["Agent", "Earned", "Collected", "Pending"],
       ...d.agents.map((a) => [a.name, a.earned, a.collected, a.pending]),
       [],
-      ["Trader", "Saas computed", "Saas collected", "Saas pending"],
+      ["Trader", "CESS computed", "CESS collected", "CESS pending"],
       ...d.traders.map((t) => [t.name, t.computed, t.collected, t.pending]),
     ];
   if (d.kind === "balances")
@@ -174,27 +174,27 @@ function Body({ data }: { data: AdminReportData }) {
           <Stat label="Goods received (estimated)" value={formatInr(t.receivedValue)} note="At each item's average sale rate" />
           <Stat label="Goods sold" value={formatInr(t.soldValue)} note={`Agents ${formatInr(t.agentSold)} + traders ${formatInr(t.traderSold)}`} />
           <Stat label="Commission earned" value={formatInr(Math.round(t.commission))} />
-          <Stat label="Saas computed" value={formatInr(t.saasComputed)} />
-          <Stat label="Saas collected" value={formatInr(t.saasCollected)} />
+          <Stat label="CESS computed" value={formatInr(t.cessComputed)} />
+          <Stat label="CESS collected" value={formatInr(t.cessCollected)} />
         </dl>
         {data.days.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-heading-md">Commission and saas collected per day</CardTitle>
+              <CardTitle className="text-heading-md">Commission and CESS collected per day</CardTitle>
               <CardDescription>Value in ₹</CardDescription>
             </CardHeader>
             <div className="flex flex-col gap-3 px-(--card-spacing)">
-              <Legend items={[{ label: "Commission", className: "bg-primary" }, { label: "Saas collected", className: "bg-tag" }]} />
+              <Legend items={[{ label: "Commission", className: "bg-primary" }, { label: "CESS collected", className: "bg-tag" }]} />
               <BarChart
                 labels={data.days.map((d) => d.label)}
                 height={220}
                 axisWidth={52}
                 labelEvery={data.days.length > 12 ? 5 : 1}
                 format={formatCompactInr}
-                summary={`Commission ${formatInr(Math.round(t.commission))} and saas collected ${formatInr(t.saasCollected)}.`}
+                summary={`Commission ${formatInr(Math.round(t.commission))} and CESS collected ${formatInr(t.cessCollected)}.`}
                 series={[
                   { name: "Commission", values: data.days.map((d) => Math.round(d.commission)), className: "fill-primary" },
-                  { name: "Saas collected", values: data.days.map((d) => Math.round(d.saas)), className: "fill-tag" },
+                  { name: "CESS collected", values: data.days.map((d) => Math.round(d.cess)), className: "fill-tag" },
                 ]}
               />
             </div>
@@ -235,7 +235,7 @@ function Body({ data }: { data: AdminReportData }) {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[360px] text-[15px]">
-              <caption className="mb-2 text-left text-heading-md text-foreground">Saas by trader</caption>
+              <caption className="mb-2 text-left text-heading-md text-foreground">CESS by trader</caption>
               <thead>
                 <tr className="h-10 border-b border-border text-left text-caption text-muted-foreground">
                   <th scope="col" className="font-normal">Trader</th>

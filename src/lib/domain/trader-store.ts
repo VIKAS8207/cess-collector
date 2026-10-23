@@ -1,10 +1,10 @@
 import { commit as commitStore, db } from "./store";
-import { overdueDays, saasSettings } from "./settings";
+import { overdueDays, cessSettings } from "./settings";
 import { allReturns as agentReturns, allSales as agentSales, getParty as agentParty } from "./agent-store";
 import { startOfDay } from "./seed";
 import { DAY } from "./types";
 import type { Unit } from "./agent-types";
-import { computeSaas, describeSaas, r2, splitSaas } from "./trader-math";
+import { computeCess, describeCess, r2, splitCess } from "./trader-math";
 import { seedTrader } from "./trader-seed";
 import {
   MAX_BILL_LINES,
@@ -32,7 +32,7 @@ export function td(): TraderData {
   const s = db();
   if (!s.trader) {
     s.trader = {
-      saas: { enabled: true, type: "percent", rate: 2, since: startOfDay(Date.now()) - 45 * DAY },
+      cess: { enabled: true, type: "percent", rate: 2, since: startOfDay(Date.now()) - 45 * DAY },
       manual: [],
       adjustments: [],
       buyers: [],
@@ -138,7 +138,7 @@ export const allBills = () => td().bills;
 export const getBill = (id: string) => td().bills.find((b) => b.id === id);
 export const allBillReturns = () => td().returns;
 export const allBuyerPayments = () => td().payments;
-export const saasConfig = () => saasSettings();
+export const cessConfig = () => cessSettings();
 export const allTraderEvents = () => td().events;
 
 export function buyerFinance(buyerId: string, upTo = Infinity): BuyerFinance {
@@ -150,16 +150,16 @@ export function buyerFinance(buyerId: string, upTo = Infinity): BuyerFinance {
   const f = {
     opening: buyer?.opening ?? 0,
     goodsBilled: bills.reduce((a, b) => a + b.goods, 0),
-    saasBilled: bills.reduce((a, b) => a + b.saas, 0),
+    cessBilled: bills.reduce((a, b) => a + b.cess, 0),
     goodsCredit: rets.reduce((a, r) => a + r.goodsCredit, 0),
-    saasCredit: rets.reduce((a, r) => a + r.saasCredit, 0),
-    saasAdjust: rets.reduce((a, r) => a + r.saasAdjust, 0),
+    cessCredit: rets.reduce((a, r) => a + r.cessCredit, 0),
+    cessAdjust: rets.reduce((a, r) => a + r.cessAdjust, 0),
     goodsPaid: pays.reduce((a, p) => a + p.goods, 0),
-    saasPaid: pays.reduce((a, p) => a + p.saas, 0),
+    cessPaid: pays.reduce((a, p) => a + p.cess, 0),
   };
   const goodsDue = r2(f.opening + f.goodsBilled - f.goodsCredit - f.goodsPaid);
-  const saasDue = r2(f.saasBilled - f.saasCredit - f.saasPaid);
-  return { ...f, goodsDue, saasDue, totalDue: r2(goodsDue + saasDue), paid: r2(f.goodsPaid + f.saasPaid) };
+  const cessDue = r2(f.cessBilled - f.cessCredit - f.cessPaid);
+  return { ...f, goodsDue, cessDue, totalDue: r2(goodsDue + cessDue), paid: r2(f.goodsPaid + f.cessPaid) };
 }
 
 /** Credit (payments and return credits) is applied to the opening balance, then the oldest bills. */
@@ -168,7 +168,7 @@ function coverage(buyerId: string): { opening: number; bills: Map<string, number
   const buyer = getBuyer(buyerId);
   let credit =
     t.payments.filter((p) => p.buyerId === buyerId).reduce((a, p) => a + p.amount, 0) +
-    t.returns.filter((r) => r.buyerId === buyerId).reduce((a, r) => a + r.goodsCredit + r.saasCredit, 0);
+    t.returns.filter((r) => r.buyerId === buyerId).reduce((a, r) => a + r.goodsCredit + r.cessCredit, 0);
   const opening = Math.min(credit, buyer?.opening ?? 0);
   credit -= opening;
   const map = new Map<string, number>();
@@ -215,7 +215,7 @@ export type TraderLedgerEntry = {
   detail: string[];
   /** Signed: bills add, returns and payments subtract. */
   goods: number;
-  saas: number;
+  cess: number;
   balance: number;
 };
 
@@ -225,7 +225,7 @@ export function buyerLedger(buyerId: string): TraderLedgerEntry[] {
   if (!buyer) return [];
   const raw: Omit<TraderLedgerEntry, "balance">[] = [];
   if (buyer.opening > 0) {
-    raw.push({ id: `op-${buyer.id}`, at: 0, kind: "opening", label: "Opening balance", detail: [], goods: buyer.opening, saas: 0 });
+    raw.push({ id: `op-${buyer.id}`, at: 0, kind: "opening", label: "Opening balance", detail: [], goods: buyer.opening, cess: 0 });
   }
   for (const b of t.bills.filter((x) => x.buyerId === buyerId)) {
     raw.push({
@@ -233,9 +233,9 @@ export function buyerLedger(buyerId: string): TraderLedgerEntry[] {
       at: b.at,
       kind: "bill",
       label: `Bill ${b.no}`,
-      detail: [...b.lines.map((l) => `${l.item}: ${l.qty} ${l.unit} × ₹${l.rate}`), `Goods ₹${b.goods} + Saas ₹${b.saas}`],
+      detail: [...b.lines.map((l) => `${l.item}: ${l.qty} ${l.unit} × ₹${l.rate}`), `Goods ₹${b.goods} + CESS ₹${b.cess}`],
       goods: b.goods,
-      saas: b.saas,
+      cess: b.cess,
     });
   }
   for (const r of t.returns.filter((x) => x.buyerId === buyerId)) {
@@ -247,10 +247,10 @@ export function buyerLedger(buyerId: string): TraderLedgerEntry[] {
       detail: [
         `${r.qty} ${r.unit} × ₹${r.rate}`,
         r.reason,
-        ...(r.saasAdjust > 0 ? [`Saas adjustment pending: ₹${r.saasAdjust} (already collected)`] : []),
+        ...(r.cessAdjust > 0 ? [`CESS adjustment pending: ₹${r.cessAdjust} (already collected)`] : []),
       ].filter(Boolean),
       goods: -r.goodsCredit,
-      saas: -r.saasCredit,
+      cess: -r.cessCredit,
     });
   }
   for (const p of t.payments.filter((x) => x.buyerId === buyerId)) {
@@ -261,13 +261,13 @@ export function buyerLedger(buyerId: string): TraderLedgerEntry[] {
       label: `Payment received · ${p.mode}`,
       detail: [p.reference && `Ref ${p.reference}`, p.remark].filter(Boolean) as string[],
       goods: -p.goods,
-      saas: -p.saas,
+      cess: -p.cess,
     });
   }
   raw.sort((a, b) => a.at - b.at);
   let bal = 0;
   return raw.map((e) => {
-    bal += e.goods + e.saas;
+    bal += e.goods + e.cess;
     return { ...e, balance: r2(bal) };
   });
 }
@@ -336,7 +336,7 @@ export function createBill(input: BillInput, by: string, opts: Opts = {}): BillR
   if (!buyer || input.lines.length === 0 || input.lines.length > MAX_BILL_LINES) return { ok: false, code: "invalid" };
   const stock = stockLines();
   const seen = new Set<string>();
-  const built: Omit<BillLine, "saas">[] = [];
+  const built: Omit<BillLine, "cess">[] = [];
   for (const l of input.lines) {
     const line = stock.find((s) => s.id === l.stockId);
     if (!line || seen.has(l.stockId) || !(l.qty > 0) || !(l.rate > 0)) return { ok: false, code: "invalid" };
@@ -348,11 +348,11 @@ export function createBill(input: BillInput, by: string, opts: Opts = {}): BillR
     }
     built.push({ id: `bl-${uid()}`, stockId: line.id, item: line.item, unit: line.unit, qty: l.qty, rate: l.rate, goods: r2(l.qty * l.rate) });
   }
-  const cfg = saasConfig();
-  const saasParts = splitSaas(cfg, built.map((b) => b.goods));
-  const lines: BillLine[] = built.map((b, i) => ({ ...b, saas: saasParts[i] }));
+  const cfg = cessConfig();
+  const cessParts = splitCess(cfg, built.map((b) => b.goods));
+  const lines: BillLine[] = built.map((b, i) => ({ ...b, cess: cessParts[i] }));
   const goods = r2(lines.reduce((a, l) => a + l.goods, 0));
-  const saas = computeSaas(cfg, goods);
+  const cess = computeCess(cfg, goods);
   const bill: Bill = {
     id: `bill-${uid()}`,
     no: nextBillNo(at),
@@ -361,9 +361,9 @@ export function createBill(input: BillInput, by: string, opts: Opts = {}): BillR
     at,
     lines,
     goods,
-    saas,
-    payable: r2(goods + saas),
-    saasBasis: describeSaas(cfg),
+    cess,
+    payable: r2(goods + cess),
+    cessBasis: describeCess(cfg),
     by,
   };
   t.bills.unshift(bill);
@@ -389,10 +389,10 @@ export function createBillReturn(
   const max = line.qty - already;
   if (input.qty > max) return { ok: false, code: "too-many", max };
   const at = opts.at ?? Date.now();
-  const share = r2((line.saas * input.qty) / line.qty);
+  const share = r2((line.cess * input.qty) / line.qty);
   const fin = buyerFinance(bill.buyerId);
-  // Saas still owed is simply reduced. Saas already collected can't be, so it is flagged for adjustment.
-  const saasCredit = r2(Math.min(share, Math.max(0, fin.saasDue)));
+  // CESS still owed is simply reduced. CESS already collected can't be, so it is flagged for adjustment.
+  const cessCredit = r2(Math.min(share, Math.max(0, fin.cessDue)));
   const ret: BillReturn = {
     id: `bret-${uid()}`,
     billId: bill.id,
@@ -404,8 +404,8 @@ export function createBillReturn(
     qty: input.qty,
     rate: line.rate,
     goodsCredit: r2(input.qty * line.rate),
-    saasCredit,
-    saasAdjust: r2(share - saasCredit),
+    cessCredit,
+    cessAdjust: r2(share - cessCredit),
     reason: input.reason,
     at,
     by,
@@ -421,7 +421,7 @@ export type PaymentInput = {
   billId?: string;
   amount: number;
   goods: number;
-  saas: number;
+  cess: number;
   mode: BuyerPayment["mode"];
   reference: string;
   remark: string;
@@ -434,10 +434,10 @@ export type PaymentResult =
 export function createBuyerPayment(input: PaymentInput, by: string, opts: Opts = {}): PaymentResult {
   const buyer = getBuyer(input.buyerId);
   if (!buyer || !(input.amount > 0)) return { ok: false, code: "invalid" };
-  if (Math.abs(r2(input.goods + input.saas) - r2(input.amount)) > 0.005 || input.goods < 0 || input.saas < 0) return { ok: false, code: "split" };
+  if (Math.abs(r2(input.goods + input.cess) - r2(input.amount)) > 0.005 || input.goods < 0 || input.cess < 0) return { ok: false, code: "split" };
   const f = buyerFinance(buyer.id);
   if (input.amount > f.totalDue + 0.005) return { ok: false, code: "overpay" };
-  if (input.goods > f.goodsDue + 0.005 || input.saas > f.saasDue + 0.005) return { ok: false, code: "part-over" };
+  if (input.goods > f.goodsDue + 0.005 || input.cess > f.cessDue + 0.005) return { ok: false, code: "part-over" };
   const at = opts.at ?? Date.now();
   const payment: BuyerPayment = { id: `bpay-${uid()}`, ...input, at, by };
   td().payments.unshift(payment);

@@ -30,7 +30,7 @@ const BY = "Tara Shah";
 
 /**
  * Builds a believable history through the real store functions, so every total
- * (saas, balances, stock) follows the same rules as live entries. Nothing is
+ * (cess, balances, stock) follows the same rules as live entries. Nothing is
  * dated today: a new account starts the day with empty "today" figures.
  */
 export function seedTrader() {
@@ -98,17 +98,17 @@ export function seedTrader() {
     if (f.totalDue <= 0) return;
     const share = i === 1 ? 1 : 0.4 + r() * 0.4;
     const amount = Math.floor(f.totalDue * share * 100) / 100;
-    const { goods, saas } = suggestSplit(amount, f.goodsDue, f.saasDue);
+    const { goods, cess } = suggestSplit(amount, f.goodsDue, f.cessDue);
     const last = allBills().filter((x) => x.buyerId === b.id).sort((a, c) => c.at - a.at)[0];
     const at = Math.min((last?.at ?? today - 3 * DAY) + int(4, 36) * HOUR, today - HOUR);
     createBuyerPayment(
-      { buyerId: b.id, amount, goods, saas, mode: i % 2 ? "upi" : "cash", reference: "", remark: "" },
+      { buyerId: b.id, amount, goods, cess, mode: i % 2 ? "upi" : "cash", reference: "", remark: "" },
       BY,
       { at }
     );
   });
 
-  // Returns: one after saas was fully paid (adjustment pending), one while saas is still owed.
+  // Returns: one after cess was fully paid (adjustment pending), one while cess is still owed.
   const paidBuyer = buyers[1];
   const paidBill = allBills().find((b) => b.buyerId === paidBuyer.id);
   if (paidBill) {

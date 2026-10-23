@@ -38,13 +38,13 @@ export function TraderKpiRow({ query, rangeLabel }: { query: Query<TraderKpis>; 
         <KpiCard label={`Sold value · ${sub}`} value={formatInr(k.sold)} delta={k.soldDelta} />
       </li>
       <li className="contents">
-        <KpiCard label={`Saas computed · ${sub}`} value={formatInr(k.saasComputed)} delta={k.saasComputedDelta} />
+        <KpiCard label={`CESS computed · ${sub}`} value={formatInr(k.cessComputed)} delta={k.cessComputedDelta} />
       </li>
       <li className="contents">
-        <KpiCard label={`Saas collected · ${sub}`} value={formatInr(k.saasCollected)} delta={k.saasCollectedDelta} />
+        <KpiCard label={`CESS collected · ${sub}`} value={formatInr(k.cessCollected)} delta={k.cessCollectedDelta} />
       </li>
       <li className="contents">
-        <KpiCard label="Saas pending" value={formatInr(k.saasPending)} note="Across all buyers" />
+        <KpiCard label="CESS pending" value={formatInr(k.cessPending)} note="Across all buyers" />
       </li>
       <li className="contents">
         <KpiCard

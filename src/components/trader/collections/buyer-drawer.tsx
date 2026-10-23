@@ -24,8 +24,8 @@ import { cn } from "cn";
 
 export function ledgerCsv(buyerId: string): (string | number)[][] {
   return [
-    ["Date", "Entry", "Goods", "Saas", "Balance"],
-    ...buyerLedger(buyerId).map((e) => [e.at ? formatStamp(e.at) : "", e.label, e.goods, e.saas, e.balance]),
+    ["Date", "Entry", "Goods", "CESS", "Balance"],
+    ...buyerLedger(buyerId).map((e) => [e.at ? formatStamp(e.at) : "", e.label, e.goods, e.cess, e.balance]),
   ];
 }
 
@@ -96,11 +96,11 @@ function Body({ buyerId, billId, by }: { buyerId: string; billId?: string; by: s
   const ledger = buyerLedger(buyerId);
   const nowMs = useNow(60_000);
   const detail = buyerDetail(buyerId, nowMs)!;
-  const { goodsDue, saasDue, totalDue } = detail.finance;
+  const { goodsDue, cessDue, totalDue } = detail.finance;
 
   const [amount, setAmount] = useState("");
   const [goods, setGoods] = useState("");
-  const [saas, setSaas] = useState("");
+  const [cess, setCess] = useState("");
   const [mode, setMode] = useState<PayMode>("cash");
   const [reference, setReference] = useState("");
   const [remark, setRemark] = useState("");
@@ -110,7 +110,7 @@ function Body({ buyerId, billId, by }: { buyerId: string; billId?: string; by: s
 
   const a = toNum(amount);
   const g = toNum(goods);
-  const s = toNum(saas);
+  const s = toNum(cess);
 
   const errors: { amount?: string; split?: string } = {};
   if (Number.isNaN(a) || a <= 0) errors.amount = "Enter the amount received.";
@@ -119,9 +119,9 @@ function Body({ buyerId, billId, by }: { buyerId: string; billId?: string; by: s
     const gg = Number.isNaN(g) ? 0 : g;
     const ss = Number.isNaN(s) ? 0 : s;
     const diff = Math.round((a - gg - ss) * 100) / 100;
-    if (diff !== 0) errors.split = diff > 0 ? `Goods and saas parts are ${formatInr(diff)} short of the amount.` : `Goods and saas parts are ${formatInr(-diff)} over the amount.`;
+    if (diff !== 0) errors.split = diff > 0 ? `Goods and CESS parts are ${formatInr(diff)} short of the amount.` : `Goods and CESS parts are ${formatInr(-diff)} over the amount.`;
     else if (gg > goodsDue + 0.005) errors.split = `Goods part is more than the ${formatInr(goodsDue)} goods due.`;
-    else if (ss > saasDue + 0.005) errors.split = `Saas part is more than the ${formatInr(saasDue)} saas due.`;
+    else if (ss > cessDue + 0.005) errors.split = `CESS part is more than the ${formatInr(cessDue)} CESS due.`;
   }
   const valid = !errors.amount && !errors.split;
 
@@ -129,20 +129,20 @@ function Body({ buyerId, billId, by }: { buyerId: string; billId?: string; by: s
     setAmount(v);
     const n = toNum(v);
     if (!Number.isNaN(n) && n > 0) {
-      const sp = suggestSplit(Math.min(n, totalDue), goodsDue, saasDue);
+      const sp = suggestSplit(Math.min(n, totalDue), goodsDue, cessDue);
       setGoods(String(sp.goods));
-      setSaas(String(sp.saas));
+      setCess(String(sp.cess));
     } else {
       setGoods("");
-      setSaas("");
+      setCess("");
     }
   };
 
   const suggest = () => {
     if (Number.isNaN(a) || a <= 0) return;
-    const sp = suggestSplit(Math.min(a, totalDue), goodsDue, saasDue);
+    const sp = suggestSplit(Math.min(a, totalDue), goodsDue, cessDue);
     setGoods(String(sp.goods));
-    setSaas(String(sp.saas));
+    setCess(String(sp.cess));
   };
 
   const submit = async () => {
@@ -151,26 +151,26 @@ function Body({ buyerId, billId, by }: { buyerId: string; billId?: string; by: s
     setSaving(true);
     setProblem(null);
     const res = await submitBuyerPayment(
-      { buyerId, billId, amount: a, goods: g || 0, saas: s || 0, mode, reference: reference.trim(), remark: remark.trim() },
+      { buyerId, billId, amount: a, goods: g || 0, cess: s || 0, mode, reference: reference.trim(), remark: remark.trim() },
       by
     );
     setSaving(false);
     if (res.ok) {
-      toast.push(`Payment saved: ${formatInr(a)} (goods ${formatInr(g || 0)}, saas ${formatInr(s || 0)}).`);
+      toast.push(`Payment saved: ${formatInr(a)} (goods ${formatInr(g || 0)}, CESS ${formatInr(s || 0)}).`);
       setAmount("");
       setGoods("");
-      setSaas("");
+      setCess("");
       setReference("");
       setRemark("");
       setAttempted(false);
-    } else setProblem(res.code === "overpay" ? "That is more than the buyer owes." : "Check the goods and saas split.");
+    } else setProblem(res.code === "overpay" ? "That is more than the buyer owes." : "Check the goods and CESS split.");
   };
 
   return (
     <>
       <section className="grid gap-3 rounded-card bg-muted p-4 sm:grid-cols-3" aria-label="Amounts due">
         <Fig label="Goods due" value={goodsDue} />
-        <Fig label="Saas due" value={saasDue} />
+        <Fig label="CESS due" value={cessDue} />
         <Fig label="Total due" value={totalDue} strong />
       </section>
 
@@ -187,12 +187,12 @@ function Body({ buyerId, billId, by }: { buyerId: string; billId?: string; by: s
               <SelectField id="bu-mode" label="Mode" value={mode} onChange={(v) => setMode(v as PayMode)} options={activePayModes()} disabled={saving} />
             </div>
             <div className="flex flex-col gap-3 rounded-card border border-border p-4">
-              <p className="text-sm text-foreground">Split (goods part + saas part = amount)</p>
+              <p className="text-sm text-foreground">Split (goods part + CESS part = amount)</p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <TextField id="bu-goods" label="Goods part (₹)" inputMode="decimal" value={goods} onChange={setGoods} autoComplete="off" disabled={saving} />
-                <TextField id="bu-saas" label="Saas part (₹)" inputMode="decimal" value={saas} onChange={setSaas} autoComplete="off" disabled={saving} />
+                <TextField id="bu-cess" label="CESS part (₹)" inputMode="decimal" value={cess} onChange={setCess} autoComplete="off" disabled={saving} />
               </div>
-              {(attempted || (goods || saas)) && errors.split && <p role="status" className="text-sm text-foreground">{errors.split}</p>}
+              {(attempted || (goods || cess)) && errors.split && <p role="status" className="text-sm text-foreground">{errors.split}</p>}
               <Button type="button" variant="ghost" size="sm" className="self-start" onClick={suggest} disabled={saving}>
                 Use proportional split
               </Button>
@@ -217,12 +217,12 @@ function Body({ buyerId, billId, by }: { buyerId: string; billId?: string; by: s
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[520px] text-[15px]">
-              <caption className="sr-only">Ledger with goods and saas split and running balance</caption>
+              <caption className="sr-only">Ledger with goods and CESS split and running balance</caption>
               <thead>
                 <tr className="h-10 border-b border-border text-left text-caption text-muted-foreground">
                   <th scope="col" className="font-normal">Entry</th>
                   <th scope="col" className="text-right font-normal">Goods</th>
-                  <th scope="col" className="text-right font-normal">Saas</th>
+                  <th scope="col" className="text-right font-normal">CESS</th>
                   <th scope="col" className="text-right font-normal">Balance</th>
                 </tr>
               </thead>
@@ -237,7 +237,7 @@ function Body({ buyerId, billId, by }: { buyerId: string; billId?: string; by: s
                       ))}
                     </th>
                     <td className={cn("py-3 text-right tabular-nums", e.goods < 0 && "text-muted-foreground")}>{e.goods ? `${e.goods > 0 ? "+" : "-"}${formatInr(Math.abs(e.goods))}` : "—"}</td>
-                    <td className={cn("py-3 text-right tabular-nums", e.saas < 0 && "text-muted-foreground")}>{e.saas ? `${e.saas > 0 ? "+" : "-"}${formatInr(Math.abs(e.saas))}` : "—"}</td>
+                    <td className={cn("py-3 text-right tabular-nums", e.cess < 0 && "text-muted-foreground")}>{e.cess ? `${e.cess > 0 ? "+" : "-"}${formatInr(Math.abs(e.cess))}` : "—"}</td>
                     <td className="py-3 text-right tabular-nums text-foreground">{formatInr(e.balance)}</td>
                   </tr>
                 ))}

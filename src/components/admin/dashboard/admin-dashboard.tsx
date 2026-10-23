@@ -96,7 +96,7 @@ function Kpis({ query, label }: { query: Query<AdminKpis>; label: string }) {
   const k = query.data;
   const m = k.money;
   const sub = label.toLowerCase();
-  const behind = m.saasCollected < m.saasComputed - 0.005;
+  const behind = m.cessCollected < m.cessComputed - 0.005;
   return (
     <ul className={GRID} aria-label="Key figures">
       <li className="contents">
@@ -113,19 +113,19 @@ function Kpis({ query, label }: { query: Query<AdminKpis>; label: string }) {
       </li>
       <li className="contents">
         <Card className={cn(CARD, behind && "border-destructive/50")}>
-          <p className="h-5 text-sm text-muted-foreground">Saas · {sub}</p>
+          <p className="h-5 text-sm text-muted-foreground">CESS · {sub}</p>
           <dl className="flex flex-col gap-1">
             <div className="flex items-baseline justify-between gap-2">
               <dt className="text-caption text-muted-foreground">Computed</dt>
-              <dd className="text-[17px] tabular-nums text-foreground">{formatInr(m.saasComputed)}</dd>
+              <dd className="text-[17px] tabular-nums text-foreground">{formatInr(m.cessComputed)}</dd>
             </div>
             <div className="flex items-baseline justify-between gap-2">
               <dt className="text-caption text-muted-foreground">Collected</dt>
-              <dd className="text-[17px] tabular-nums text-foreground">{formatInr(m.saasCollected)}</dd>
+              <dd className="text-[17px] tabular-nums text-foreground">{formatInr(m.cessCollected)}</dd>
             </div>
           </dl>
           <p className={cn("h-4 text-caption", behind ? "text-destructive" : "text-muted-foreground")}>
-            {behind ? `${formatInr(m.saasComputed - m.saasCollected)} not collected yet` : "Collected in full"}
+            {behind ? `${formatInr(m.cessComputed - m.cessCollected)} not collected yet` : "Collected in full"}
           </p>
         </Card>
       </li>
@@ -144,19 +144,19 @@ function ChartCard({ query, mode, onMode, label }: { query: Query<AdminSeries>; 
     query.status === "ready"
       ? gate
         ? `${sum(query.data.a)} entries and ${sum(query.data.b)} exits in this period.`
-        : `Sold ${formatInr(sum(query.data.a))} and collected ${formatInr(sum(query.data.b))} of saas in this period.`
+        : `Sold ${formatInr(sum(query.data.a))} and collected ${formatInr(sum(query.data.b))} of CESS in this period.`
       : "";
   const empty = query.status === "ready" && sum(query.data.a) === 0 && sum(query.data.b) === 0;
   return (
     <Card className="h-full">
       <CardHeader>
-        <CardTitle className="text-heading-md">{gate ? "Entries and exits" : "Sold value and saas collected"}</CardTitle>
+        <CardTitle className="text-heading-md">{gate ? "Entries and exits" : "Sold value and CESS collected"}</CardTitle>
         <CardDescription>
           {label}
           {query.status === "ready" ? ` · ${query.data.period}` : ""}
         </CardDescription>
         <CardAction className="max-sm:hidden">
-          <Legend items={gate ? [{ label: "Entries", className: "bg-primary" }, { label: "Exits", className: "bg-tag" }] : [{ label: "Sold value", className: "bg-primary" }, { label: "Saas collected", className: "bg-tag" }]} />
+          <Legend items={gate ? [{ label: "Entries", className: "bg-primary" }, { label: "Exits", className: "bg-tag" }] : [{ label: "Sold value", className: "bg-primary" }, { label: "CESS collected", className: "bg-tag" }]} />
         </CardAction>
       </CardHeader>
       <div className="flex flex-col gap-4 px-(--card-spacing)">
@@ -179,7 +179,7 @@ function ChartCard({ query, mode, onMode, label }: { query: Query<AdminSeries>; 
               summary={summary}
               series={[
                 { name: gate ? "Entries" : "Sold value", values: query.data.a, className: "fill-primary" },
-                { name: gate ? "Exits" : "Saas collected", values: query.data.b, className: "fill-tag" },
+                { name: gate ? "Exits" : "CESS collected", values: query.data.b, className: "fill-tag" },
               ]}
             />
             <p className="sr-only">{summary}</p>

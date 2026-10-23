@@ -15,10 +15,10 @@ import { SideDrawer } from "@/components/gate/side-drawer";
 import { BuyerPill } from "@/components/trader/pills";
 import { BuyerDrawer } from "@/components/trader/collections/buyer-drawer";
 import { useAuth } from "@/lib/auth-store";
-import { buyerDetail, getCollections, getSaasMovements, type BuyerRow, type SaasMovement } from "@/lib/api/trader";
+import { buyerDetail, getCollections, getCessMovements, type BuyerRow, type CessMovement } from "@/lib/api/trader";
 import { forcedErrors } from "@/lib/api/gate";
 import { describeRange, resolveRange, type RangePreset } from "@/lib/domain/range";
-import { SAAS_LABEL } from "@/lib/domain/trader-types";
+import { CESS_LABEL } from "@/lib/domain/trader-types";
 import { formatInr, formatStamp } from "@/lib/format";
 import { useLiveQuery } from "@/hooks/use-live-query";
 import { useHotkey } from "@/hooks/use-hotkey";
@@ -39,7 +39,7 @@ const buyerColumns: Column<BuyerRow>[] = [
   },
   { key: "bills", header: "Bills", align: "right", hideBelow: "2xl", cell: (r) => r.bills },
   { key: "goods", header: "Goods due", align: "right", hideBelow: "xl", cell: (r) => formatInr(r.goodsDue) },
-  { key: "saas", header: "Saas due", align: "right", hideBelow: "xl", cell: (r) => formatInr(r.saasDue) },
+  { key: "cess", header: "CESS due", align: "right", hideBelow: "xl", cell: (r) => formatInr(r.cessDue) },
   { key: "paid", header: "Paid", align: "right", hideBelow: "2xl", cell: (r) => <span className="text-muted-foreground">{formatInr(r.paid)}</span> },
   { key: "due", header: "Balance due", align: "right", cell: (r) => <span className="text-foreground">{formatInr(r.totalDue)}</span> },
   { key: "status", header: "Status", cell: (r) => <BuyerPill status={r.status} /> },
@@ -52,9 +52,9 @@ const rangeOptions = [
   { value: "30d", label: "Last 30 days" },
 ];
 
-type SaasView = "computed" | "collected" | "pending";
+type CessView = "computed" | "collected" | "pending";
 
-function SaasStat({ label, value, onClick, active }: { label: string; value: number; onClick: () => void; active: boolean }) {
+function CessStat({ label, value, onClick, active }: { label: string; value: number; onClick: () => void; active: boolean }) {
   return (
     <button
       type="button"
@@ -81,14 +81,14 @@ export function CollectionsPage() {
   const [q, setQ] = useState("");
   const [openId, setOpenId] = useState<string | null>(params.get("buyer"));
   const billId = params.get("bill") ?? undefined;
-  const [saasView, setSaasView] = useState<SaasView | null>(null);
+  const [cessView, setCessView] = useState<CessView | null>(null);
   const [stmt, setStmt] = useState<string | null>(null);
 
   const data = useLiveQuery(`coll:${range}:${q}`, (a) =>
     getCollections(resolveRange(range, Date.now()), q, { forceError: a === 0 && forcedErrors().has("collections") })
   );
-  const movements = useLiveQuery(`saas:${range}:${saasView}`, (a) =>
-    saasView ? getSaasMovements(resolveRange(range, Date.now()), saasView, { forceError: a === 0 && forcedErrors().has("saas") }) : Promise.resolve([] as SaasMovement[])
+  const movements = useLiveQuery(`cess:${range}:${cessView}`, (a) =>
+    cessView ? getCessMovements(resolveRange(range, Date.now()), cessView, { forceError: a === 0 && forcedErrors().has("cess") }) : Promise.resolve([] as CessMovement[])
   );
   useHotkey("/", () => searchRef.current?.focus());
 
@@ -111,15 +111,15 @@ export function CollectionsPage() {
   return (
     <>
       <div className="flex flex-col gap-8 lg:gap-10" {...(stmt ? { "data-print-hide": true } : {})}>
-        <PageHeader title="Collections" description="Who owes you, and how much of it is saas." />
+        <PageHeader title="Collections" description="Who owes you, and how much of it is CESS." />
 
-        <section aria-label="Saas summary" className="flex flex-col gap-3">
+        <section aria-label="CESS summary" className="flex flex-col gap-3">
           <div className="grid gap-4 sm:grid-cols-3">
             {data.status === "ready" ? (
               <>
-                <SaasStat label={`${SAAS_LABEL} computed`} value={data.data.saas.computed} active={saasView === "computed"} onClick={() => setSaasView("computed")} />
-                <SaasStat label={`${SAAS_LABEL} collected`} value={data.data.saas.collected} active={saasView === "collected"} onClick={() => setSaasView("collected")} />
-                <SaasStat label={`${SAAS_LABEL} pending`} value={data.data.saas.pending} active={saasView === "pending"} onClick={() => setSaasView("pending")} />
+                <CessStat label={`${CESS_LABEL} computed`} value={data.data.cess.computed} active={cessView === "computed"} onClick={() => setCessView("computed")} />
+                <CessStat label={`${CESS_LABEL} collected`} value={data.data.cess.collected} active={cessView === "collected"} onClick={() => setCessView("collected")} />
+                <CessStat label={`${CESS_LABEL} pending`} value={data.data.cess.pending} active={cessView === "pending"} onClick={() => setCessView("pending")} />
               </>
             ) : (
               [0, 1, 2].map((i) => <Skeleton key={i} className="h-24 rounded-card" />)
@@ -178,21 +178,21 @@ export function CollectionsPage() {
         <BuyerDrawer id={openId} billId={billId} by={by} onClose={() => setOpenId(null)} onPrint={setStmt} />
 
         <SideDrawer
-          open={!!saasView}
-          onClose={() => setSaasView(null)}
-          title={saasView ? `${SAAS_LABEL} ${saasView}` : ""}
-          description={saasView === "pending" ? "All buyers, as of now" : rangeLabel}
+          open={!!cessView}
+          onClose={() => setCessView(null)}
+          title={cessView ? `${CESS_LABEL} ${cessView}` : ""}
+          description={cessView === "pending" ? "All buyers, as of now" : rangeLabel}
         >
-          {saasView && movements.status === "loading" && (
-            <div role="status" aria-label="Loading saas movements" className="flex flex-col gap-3">
+          {cessView && movements.status === "loading" && (
+            <div role="status" aria-label="Loading CESS movements" className="flex flex-col gap-3">
               {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
           )}
-          {saasView && movements.status === "error" && <BlockError onRetry={movements.retry} className="h-48" />}
-          {saasView && movements.status === "ready" && movements.data.length === 0 && (
+          {cessView && movements.status === "error" && <BlockError onRetry={movements.retry} className="h-48" />}
+          {cessView && movements.status === "ready" && movements.data.length === 0 && (
             <p className="text-sm text-muted-foreground">Nothing here for this range.</p>
           )}
-          {saasView && movements.status === "ready" && movements.data.length > 0 && (
+          {cessView && movements.status === "ready" && movements.data.length > 0 && (
             <>
               <ul className="flex flex-col">
                 {movements.data.map((m) => (
@@ -224,7 +224,7 @@ export function CollectionsPage() {
               <tr className="border-b border-border text-left">
                 <th className="py-2 font-normal">Entry</th>
                 <th className="py-2 text-right font-normal">Goods</th>
-                <th className="py-2 text-right font-normal">Saas</th>
+                <th className="py-2 text-right font-normal">CESS</th>
                 <th className="py-2 text-right font-normal">Balance</th>
               </tr>
             </thead>
@@ -236,14 +236,14 @@ export function CollectionsPage() {
                     {e.at > 0 && <span className="block text-[12px]">{formatStamp(e.at)}</span>}
                   </td>
                   <td className="py-2 text-right tabular-nums">{e.goods ? formatInr(e.goods) : "—"}</td>
-                  <td className="py-2 text-right tabular-nums">{e.saas ? formatInr(e.saas) : "—"}</td>
+                  <td className="py-2 text-right tabular-nums">{e.cess ? formatInr(e.cess) : "—"}</td>
                   <td className="py-2 text-right tabular-nums">{formatInr(e.balance)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           <p className="mt-4 text-right text-[15px]">
-            Closing balance: <span className="tabular-nums">{formatInr(stmtDetail.finance.totalDue)}</span> (goods {formatInr(stmtDetail.finance.goodsDue)} + saas {formatInr(stmtDetail.finance.saasDue)})
+            Closing balance: <span className="tabular-nums">{formatInr(stmtDetail.finance.totalDue)}</span> (goods {formatInr(stmtDetail.finance.goodsDue)} + CESS {formatInr(stmtDetail.finance.cessDue)})
           </p>
         </div>
       )}

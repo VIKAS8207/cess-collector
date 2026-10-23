@@ -26,7 +26,7 @@ import { forcedErrors, getInside, lookupScan, type ScanLookup } from "@/lib/api/
 import { activeLabels } from "@/lib/domain/admin-store";
 import { cessFor, toNum } from "@/lib/domain/agent-math";
 import { cessStatusLabel, payModes, units, type Allocation, type PayMode, type Unit } from "@/lib/domain/agent-types";
-import { saasSettings } from "@/lib/domain/settings";
+import { cessSettings } from "@/lib/domain/settings";
 import { weighSummary, type Movement } from "@/lib/domain/types";
 import { formatInr, formatQty, formatStamp } from "@/lib/format";
 import { useLiveQuery } from "@/hooks/use-live-query";
@@ -190,7 +190,7 @@ function TruckSteps({
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
 
-  const cfg = saasSettings();
+  const cfg = cessSettings();
   const used = new Set(draft.map((d) => d.partyId));
   const free = traderList.filter((t) => !used.has(t.id));
   const qtyN = toNum(qty);

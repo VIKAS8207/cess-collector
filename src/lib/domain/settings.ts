@@ -2,7 +2,7 @@
  * System settings owned by the Admin role. Other roles only read them.
  * This file has no imports so any store can use it without a cycle.
  */
-export type SaasSettings = {
+export type CessSettings = {
   enabled: boolean;
   type: "percent" | "flat";
   rate: number;
@@ -21,14 +21,14 @@ export const config = {
   otpCooldownSeconds: 60,
   /** Fixed. Shown to the admin as a note, not editable. */
   retentionDays: 90,
-  saas: {
+  cess: {
     enabled: true,
     type: "percent",
     rate: 2,
     since: 0,
     lastChangedBy: "System",
     lastChangedAt: 0,
-  } as SaasSettings,
+  } as CessSettings,
   gates: [{ id: "gate-1", name: "Gate 1", active: true }] as Gate[],
   business: {
     name: "CESS Collector Agro Market",
@@ -45,5 +45,5 @@ export const retentionMs = () => config.retentionDays * 86_400_000;
 
 /** Gate stamped on new gate records: the first active gate. */
 export const activeGate = () => config.gates.find((g) => g.active)?.name ?? config.gates[0]?.name ?? "Gate 1";
-export const saasSettings = () => config.saas;
+export const cessSettings = () => config.cess;
 export const businessInfo = () => config.business;

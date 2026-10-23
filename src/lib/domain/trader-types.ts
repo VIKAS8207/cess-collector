@@ -5,12 +5,12 @@ export const TRADER_OVERDUE_DAYS = 7;
 export const MAX_BILL_LINES = 20;
 /** How many blocked oversell attempts show in Needs attention. */
 export const TRADER_BLOCKED_LIMIT = 5;
-export const SAAS_LABEL = "Saas (admin rate)";
+export const CESS_LABEL = "CESS (admin rate)";
 
-export type SaasType = "percent" | "flat";
+export type CessType = "percent" | "flat";
 
 /** One admin-owned config. Traders can read it, never change it. */
-export type SaasConfig = { enabled: boolean; type: SaasType; rate: number; since: number };
+export type CessConfig = { enabled: boolean; type: CessType; rate: number; since: number };
 
 export type StockSource =
   | { kind: "agent"; agentName: string; saleNo: string; saleId: string; partyName: string }
@@ -74,8 +74,8 @@ export type BillLine = {
   qty: number;
   rate: number;
   goods: number;
-  /** This line's share of the bill's saas. */
-  saas: number;
+  /** This line's share of the bill's cess. */
+  cess: number;
 };
 
 export type Bill = {
@@ -86,10 +86,10 @@ export type Bill = {
   at: number;
   lines: BillLine[];
   goods: number;
-  saas: number;
+  cess: number;
   payable: number;
-  /** Saas rule in force when the bill was made. Later rate changes never touch it. */
-  saasBasis?: string;
+  /** CESS rule in force when the bill was made. Later rate changes never touch it. */
+  cessBasis?: string;
   by: string;
 };
 
@@ -104,10 +104,10 @@ export type BillReturn = {
   qty: number;
   rate: number;
   goodsCredit: number;
-  /** Saas taken off what the buyer still owes. */
-  saasCredit: number;
-  /** Saas already collected that now needs adjusting. */
-  saasAdjust: number;
+  /** CESS taken off what the buyer still owes. */
+  cessCredit: number;
+  /** CESS already collected that now needs adjusting. */
+  cessAdjust: number;
   reason: string;
   at: number;
   by: string;
@@ -119,7 +119,7 @@ export type BuyerPayment = {
   billId?: string;
   amount: number;
   goods: number;
-  saas: number;
+  cess: number;
   mode: "cash" | "upi" | "bank" | "cheque";
   reference: string;
   remark: string;
@@ -139,7 +139,7 @@ export type TraderEvent = {
 };
 
 export type TraderData = {
-  saas: SaasConfig;
+  cess: CessConfig;
   manual: ManualPurchase[];
   adjustments: StockAdjustment[];
   buyers: Buyer[];
@@ -152,14 +152,14 @@ export type TraderData = {
 export type BuyerFinance = {
   opening: number;
   goodsBilled: number;
-  saasBilled: number;
+  cessBilled: number;
   goodsCredit: number;
-  saasCredit: number;
-  saasAdjust: number;
+  cessCredit: number;
+  cessAdjust: number;
   goodsPaid: number;
-  saasPaid: number;
+  cessPaid: number;
   goodsDue: number;
-  saasDue: number;
+  cessDue: number;
   totalDue: number;
   paid: number;
 };

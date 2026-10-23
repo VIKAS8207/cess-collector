@@ -92,7 +92,7 @@ export function TraderDashboard() {
         <TraderAttentionCard
           query={attention}
           onOpen={(a) => {
-            if (a.kind === "overdue" || a.kind === "saas-adjust") router.push(`/collections?buyer=${a.buyerId}`);
+            if (a.kind === "overdue" || a.kind === "cess-adjust") router.push(`/collections?buyer=${a.buyerId}`);
             else if (a.stockId) setStockId(a.stockId);
           }}
         />

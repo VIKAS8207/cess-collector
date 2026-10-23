@@ -25,13 +25,13 @@ export function TraderChart({
     query.status === "ready"
       ? `Sold ${formatInr(query.data.sold.reduce((a, b) => a + b, 0))} and collected ${formatInr(
           query.data.collected.reduce((a, b) => a + b, 0)
-        )} of saas in this period.`
+        )} of CESS in this period.`
       : "";
 
   return (
     <Card className="h-full">
       <CardHeader>
-        <CardTitle className="text-heading-md">Sold value and saas collected</CardTitle>
+        <CardTitle className="text-heading-md">Sold value and CESS collected</CardTitle>
         <CardDescription>
           {rangeLabel}
           {query.status === "ready" ? ` · ${query.data.period}` : ""}
@@ -40,7 +40,7 @@ export function TraderChart({
           <Legend
             items={[
               { label: "Sold value", className: "bg-primary" },
-              { label: "Saas collected", className: "bg-tag" },
+              { label: "CESS collected", className: "bg-tag" },
             ]}
           />
         </CardAction>
@@ -74,8 +74,8 @@ export function TraderChart({
                 axisWidth={52}
                 labelEvery={every}
                 format={formatCompactInr}
-                summary="Saas collected per period."
-                series={[{ name: "Saas collected", values: query.data.collected, className: "fill-tag" }]}
+                summary="CESS collected per period."
+                series={[{ name: "CESS collected", values: query.data.collected, className: "fill-tag" }]}
               />
             </div>
             <p className="sr-only">{summary}</p>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Dialog } from "@base-ui/react/dialog";
-import { XIcon } from "lucide-react";
+import { EyeIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/brand";
 import { ToastProvider } from "@/components/gate/toast";
@@ -17,7 +17,7 @@ import { cn } from "cn";
 const sidebarStore = createStore("sas:sidebar-collapsed", "local");
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, viewAs } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const collapsed = useStore(sidebarStore) === "1";
@@ -108,6 +108,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           collapsed ? "lg:pl-18" : "lg:pl-60"
         )}
       >
+        {user.isAdmin && user.roleId !== "admin" && (
+          <div
+            data-print-hide
+            role="status"
+            className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-tag px-4 py-2 text-sm text-tag-foreground sm:px-6 lg:px-8"
+          >
+            <span className="flex items-center gap-2">
+              <EyeIcon aria-hidden="true" className="size-4" />
+              You are viewing the app as {user.role}. Anything you do here is saved under your admin name.
+            </span>
+            <Button size="sm" variant="outline" onClick={() => viewAs("admin")}>
+              Back to admin
+            </Button>
+          </div>
+        )}
         <Topbar
           drawerOpen={drawerOpen}
           onOpenDrawer={() => setDrawerOpen(true)}

@@ -43,7 +43,7 @@ import {
   renameGate,
   revokeOtp,
   saveBusiness,
-  saveSaas,
+  saveCess,
   saveThresholds,
   sendResetOtp,
   setBuyerActive,
@@ -93,8 +93,8 @@ export type MoneyTotals = {
   traderSold: number;
   soldValue: number;
   commission: number;
-  saasComputed: number;
-  saasCollected: number;
+  cessComputed: number;
+  cessCollected: number;
 };
 
 export function moneyTotals(range: Range): MoneyTotals {
@@ -114,8 +114,8 @@ export function moneyTotals(range: Range): MoneyTotals {
     traderSold,
     soldValue: agentSold + traderSold,
     commission: Math.round((gross - back) * 100) / 100,
-    saasComputed: bills.reduce((a, b) => a + b.saas, 0),
-    saasCollected: allBuyerPayments().filter((p) => inRange(p.at, range)).reduce((a, p) => a + p.saas, 0),
+    cessComputed: bills.reduce((a, b) => a + b.cess, 0),
+    cessCollected: allBuyerPayments().filter((p) => inRange(p.at, range)).reduce((a, p) => a + p.cess, 0),
   };
 }
 
@@ -177,7 +177,7 @@ export function getAdminSeries(range: Range, mode: "gate" | "money", opts?: Opts
     } else {
       for (const s of allSales()) if (inRange(s.at, range)) a[idx(s.at)] += saleTotal(s);
       for (const x of allBills()) if (inRange(x.at, range)) a[idx(x.at)] += x.goods;
-      for (const p of allBuyerPayments()) if (inRange(p.at, range)) b[idx(p.at)] += p.saas;
+      for (const p of allBuyerPayments()) if (inRange(p.at, range)) b[idx(p.at)] += p.cess;
     }
     return {
       labels: Array.from({ length: n }, (_, i) => (byHour ? hourLabel(i % 24) : dayFmt.format(range.from + i * DAY))),
@@ -274,7 +274,7 @@ export function getUsers(f: { role?: RoleId; status?: "active" | "inactive"; q?:
   });
 }
 
-export async function submitCreateUser(input: { name: string; email: string; role: RoleId }, admin: string) {
+export async function submitCreateUser(input: { name: string; email: string; role: RoleId; password: string }, admin: string) {
   await delay();
   return createUser(input, admin);
 }
@@ -302,7 +302,7 @@ export function userAudit(u: AppUser) {
 // ---------- settings ----------
 
 export type SettingsSnapshot = {
-  saas: typeof config.saas;
+  cess: typeof config.cess;
   overstayHours: number;
   overdueDays: number;
   otpCooldownSeconds: number;
@@ -313,7 +313,7 @@ export type SettingsSnapshot = {
 
 export function getSettings(opts?: Opts): Promise<SettingsSnapshot> {
   return sim(opts, () => ({
-    saas: { ...config.saas },
+    cess: { ...config.cess },
     overstayHours: config.overstayHours,
     overdueDays: config.overdueDays,
     otpCooldownSeconds: config.otpCooldownSeconds,
@@ -323,9 +323,9 @@ export function getSettings(opts?: Opts): Promise<SettingsSnapshot> {
   }));
 }
 
-export async function submitSaas(input: { enabled: boolean; type: "percent" | "flat"; rate: number }, admin: string) {
+export async function submitCess(input: { enabled: boolean; type: "percent" | "flat"; rate: number }, admin: string) {
   await delay();
-  saveSaas(input, admin);
+  saveCess(input, admin);
 }
 export async function submitThresholds(input: { overstayHours: number; overdueDays: number; otpCooldownSeconds: number }, admin: string) {
   await delay();
@@ -454,7 +454,7 @@ export type AdminReportData =
       agents: { name: string; earned: number; collected: number; pending: number }[];
       traders: { name: string; computed: number; collected: number; pending: number }[];
       byRole: { label: string; value: number }[];
-      days: { label: string; commission: number; saas: number }[];
+      days: { label: string; commission: number; cess: number }[];
     }
   | {
       kind: "balances";
@@ -519,19 +519,19 @@ export function getAdminReport(kind: AdminReportKind, f: AdminReportFilters, opt
       const bills = allBills().filter((b) => inRange(b.at, range));
       const traderNames = [...new Set(bills.map((b) => b.by))].filter(userOk);
       const traders = traderNames.map((name) => {
-        const computed = bills.filter((b) => b.by === name).reduce((a, b) => a + b.saas, 0);
-        const collected = allBuyerPayments().filter((p) => inRange(p.at, range) && p.by === name).reduce((a, p) => a + p.saas, 0);
-        const pending = allBuyers().filter((b) => (b.owner ?? "") === name).reduce((a, b) => a + Math.max(0, buyerFinance(b.id).saasDue), 0);
+        const computed = bills.filter((b) => b.by === name).reduce((a, b) => a + b.cess, 0);
+        const collected = allBuyerPayments().filter((p) => inRange(p.at, range) && p.by === name).reduce((a, p) => a + p.cess, 0);
+        const pending = allBuyers().filter((b) => (b.owner ?? "") === name).reduce((a, b) => a + Math.max(0, buyerFinance(b.id).cessDue), 0);
         return { name, computed, collected, pending };
       });
-      const dayMap = new Map<number, { label: string; commission: number; saas: number }>();
+      const dayMap = new Map<number, { label: string; commission: number; cess: number }>();
       const day = (t: number) => {
         const d = startOfDay(t);
-        if (!dayMap.has(d)) dayMap.set(d, { label: dayFmt.format(d), commission: 0, saas: 0 });
+        if (!dayMap.has(d)) dayMap.set(d, { label: dayFmt.format(d), commission: 0, cess: 0 });
         return dayMap.get(d)!;
       };
       for (const s of sales) day(s.at).commission += saleCommission(s);
-      for (const p of allBuyerPayments().filter((x) => inRange(x.at, range))) day(p.at).saas += p.saas;
+      for (const p of allBuyerPayments().filter((x) => inRange(x.at, range))) day(p.at).cess += p.cess;
       return {
         kind,
         totals,

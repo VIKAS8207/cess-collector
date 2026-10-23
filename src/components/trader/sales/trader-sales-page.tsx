@@ -48,7 +48,7 @@ const billColumns = (showDate?: boolean): Column<Bill>[] => [
   { key: "buyer", header: "Buyer", cell: (b) => <span className="block max-w-36 truncate">{b.buyerName}</span> },
   { key: "lines", header: "Lines", align: "right", hideBelow: "lg", cell: (b) => b.lines.length },
   { key: "goods", header: "Goods", align: "right", hideBelow: "xl", cell: (b) => formatInr(b.goods) },
-  { key: "saas", header: "Saas", align: "right", hideBelow: "xl", cell: (b) => formatInr(b.saas) },
+  { key: "cess", header: "CESS", align: "right", hideBelow: "xl", cell: (b) => formatInr(b.cess) },
   { key: "payable", header: "Payable", align: "right", cell: (b) => <span className="text-foreground">{formatInr(b.payable)}</span> },
   { key: "status", header: "Status", cell: (b) => <BillPill status={billStatus(b)} /> },
 ];
@@ -121,7 +121,7 @@ export function TraderSalesPage() {
     <div className="flex flex-col gap-8 lg:gap-10">
       <PageHeader
         title="Sales"
-        description="Make a bill. Saas is added to what the buyer pays."
+        description="Make a bill. CESS is added to what the buyer pays."
         actions={
           <Button
             ref={newButton}
@@ -146,7 +146,7 @@ export function TraderSalesPage() {
           <CircleCheckIcon aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-primary" />
           <p className="text-foreground">
             Bill <span className="tabular-nums">{saved.no}</span> recorded. Buyer payable{" "}
-            <span className="tabular-nums">{formatInr(saved.payable)}</span> (goods {formatInr(saved.goods)} + saas {formatInr(saved.saas)}).
+            <span className="tabular-nums">{formatInr(saved.payable)}</span> (goods {formatInr(saved.goods)} + CESS {formatInr(saved.cess)}).
           </p>
         </div>
       )}

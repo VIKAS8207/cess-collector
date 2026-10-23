@@ -1,7 +1,7 @@
 import { Pill } from "@/components/ui/pill";
-import { describeSaas } from "@/lib/domain/trader-math";
-import { saasConfig, type BuyerStatus } from "@/lib/domain/trader-store";
-import { SAAS_LABEL, type BillStatus, type StockLine } from "@/lib/domain/trader-types";
+import { describeCess } from "@/lib/domain/trader-math";
+import { cessConfig, type BuyerStatus } from "@/lib/domain/trader-store";
+import { CESS_LABEL, type BillStatus, type StockLine } from "@/lib/domain/trader-types";
 import { stockStatuses } from "@/lib/api/trader";
 import { formatInr } from "@/lib/format";
 
@@ -26,18 +26,18 @@ export function StockPills({ line }: { line: StockLine }) {
   );
 }
 
-/** The one read-only saas line used on every bill, drawer and form. */
-export function SaasLine({ amount, className }: { amount: number; className?: string }) {
+/** The one read-only cess line used on every bill, drawer and form. */
+export function CessLine({ amount, className }: { amount: number; className?: string }) {
   return (
     <p className={className}>
-      <span>{SAAS_LABEL}:</span>{" "}
+      <span>{CESS_LABEL}:</span>{" "}
       <span className="tabular-nums text-foreground">{formatInr(amount)}</span>{" "}
       <span className="text-muted-foreground">— fixed by admin</span>
     </p>
   );
 }
 
-export function SaasBasis() {
-  const cfg = saasConfig();
-  return <>Saas config: {describeSaas(cfg)} (fixed by admin)</>;
+export function CessBasis() {
+  const cfg = cessConfig();
+  return <>CESS config: {describeCess(cfg)} (fixed by admin)</>;
 }

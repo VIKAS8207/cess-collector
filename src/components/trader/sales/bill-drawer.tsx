@@ -10,7 +10,7 @@ import { FormBanner } from "@/components/auth/form-banner";
 import { TextField } from "@/components/auth/text-field";
 import { SideDrawer } from "@/components/gate/side-drawer";
 import { useToast } from "@/components/gate/toast";
-import { BillPill, SaasBasis, SaasLine } from "@/components/trader/pills";
+import { BillPill, CessBasis, CessLine } from "@/components/trader/pills";
 import { submitBillReturn } from "@/lib/api/trader";
 import { toNum } from "@/lib/domain/agent-math";
 import { useStoreVersion } from "@/lib/domain/store";
@@ -78,8 +78,8 @@ function Body({ billId, by }: { billId: string; by: string }) {
     setSaving(false);
     if (res.ok) {
       toast.push(
-        res.ret.saasAdjust > 0
-          ? `Return recorded. ₹${res.ret.saasAdjust} of saas was already collected and is flagged for adjustment.`
+        res.ret.cessAdjust > 0
+          ? `Return recorded. ₹${res.ret.cessAdjust} of CESS was already collected and is flagged for adjustment.`
           : `Return recorded: ${formatQty(n)} ${chosen.line.unit} ${chosen.line.item}.`
       );
       setQty("");
@@ -101,7 +101,7 @@ function Body({ billId, by }: { billId: string; by: string }) {
                 <th scope="col" className="text-right font-normal">Qty</th>
                 <th scope="col" className="text-right font-normal">Rate</th>
                 <th scope="col" className="text-right font-normal">Goods</th>
-                <th scope="col" className="text-right font-normal">Saas share</th>
+                <th scope="col" className="text-right font-normal">CESS share</th>
               </tr>
             </thead>
             <tbody>
@@ -111,7 +111,7 @@ function Body({ billId, by }: { billId: string; by: string }) {
                   <td className="py-3 text-right tabular-nums">{formatQty(l.qty)}</td>
                   <td className="py-3 text-right tabular-nums">{formatInr(l.rate)}</td>
                   <td className="py-3 text-right tabular-nums">{formatInr(l.goods)}</td>
-                  <td className="py-3 text-right tabular-nums">{formatInr(l.saas)}</td>
+                  <td className="py-3 text-right tabular-nums">{formatInr(l.cess)}</td>
                 </tr>
               ))}
             </tbody>
@@ -119,11 +119,11 @@ function Body({ billId, by }: { billId: string; by: string }) {
         </div>
         <dl className="flex flex-col gap-2 rounded-card bg-muted p-4 text-[15px]">
           <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Goods total</dt><dd className="tabular-nums">{formatInr(bill.goods)}</dd></div>
-          <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Saas (admin rate)</dt><dd className="tabular-nums">{formatInr(bill.saas)}</dd></div>
+          <div className="flex justify-between gap-3"><dt className="text-muted-foreground">CESS (admin rate)</dt><dd className="tabular-nums">{formatInr(bill.cess)}</dd></div>
           <div className="flex justify-between gap-3 border-t border-border pt-2"><dt>Buyer payable</dt><dd className="text-heading-md font-normal tabular-nums">{formatInr(bill.payable)}</dd></div>
         </dl>
-        <SaasLine amount={bill.saas} className="text-sm text-muted-foreground" />
-        <p className="text-caption text-muted-foreground"><SaasBasis /></p>
+        <CessLine amount={bill.cess} className="text-sm text-muted-foreground" />
+        <p className="text-caption text-muted-foreground"><CessBasis /></p>
       </section>
 
       {rets.length > 0 && (
@@ -132,10 +132,10 @@ function Body({ billId, by }: { billId: string; by: string }) {
           <ul className="flex flex-col gap-2 text-sm">
             {rets.map((r) => (
               <li key={r.id} className="flex flex-col">
-                <span className="tabular-nums text-foreground">{formatQty(r.qty)} {r.unit} {r.item} · credit {formatInr(r.goodsCredit + r.saasCredit)}</span>
+                <span className="tabular-nums text-foreground">{formatQty(r.qty)} {r.unit} {r.item} · credit {formatInr(r.goodsCredit + r.cessCredit)}</span>
                 <span className="text-caption text-muted-foreground">
                   {formatStamp(r.at)} · {r.reason}
-                  {r.saasAdjust > 0 ? ` · Saas adjustment pending ${formatInr(r.saasAdjust)}` : ""}
+                  {r.cessAdjust > 0 ? ` · CESS adjustment pending ${formatInr(r.cessAdjust)}` : ""}
                 </span>
               </li>
             ))}
@@ -175,7 +175,7 @@ function Body({ billId, by }: { billId: string; by: string }) {
           <ul className="flex flex-col gap-2 text-sm">
             {payments.map((p) => (
               <li key={p.id} className="flex items-baseline justify-between gap-3">
-                <span className="text-caption text-muted-foreground">{formatStamp(p.at)} · {p.mode} · goods {formatInr(p.goods)}, saas {formatInr(p.saas)}</span>
+                <span className="text-caption text-muted-foreground">{formatStamp(p.at)} · {p.mode} · goods {formatInr(p.goods)}, cess {formatInr(p.cess)}</span>
                 <span className="tabular-nums text-foreground">{formatInr(p.amount)}</span>
               </li>
             ))}

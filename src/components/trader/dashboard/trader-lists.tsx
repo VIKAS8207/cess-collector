@@ -157,7 +157,7 @@ export function PendingCard({ query }: { query: Query<PendingRow[]> }) {
                     <th scope="row" className="py-1 pr-3 text-left font-normal">
                       <span className="block text-[15px] text-foreground">{r.buyer.name}</span>
                       <span className="block text-caption tabular-nums text-muted-foreground">
-                        Goods {formatInr(r.goodsDue)} · Saas {formatInr(r.saasDue)}
+                        Goods {formatInr(r.goodsDue)} · CESS {formatInr(r.cessDue)}
                       </span>
                     </th>
                     <td className="text-right text-[15px] tabular-nums text-foreground">{formatInr(r.totalDue)}</td>
@@ -183,14 +183,14 @@ export function PendingCard({ query }: { query: Query<PendingRow[]> }) {
   );
 }
 
-const attentionIcon = { overdue: HandCoinsIcon, "saas-adjust": TriangleAlertIcon, wastage: PackageXIcon, blocked: BanIcon } as const;
+const attentionIcon = { overdue: HandCoinsIcon, "cess-adjust": TriangleAlertIcon, wastage: PackageXIcon, blocked: BanIcon } as const;
 
 export function TraderAttentionCard({ query, onOpen }: { query: Query<TraderAttention[]>; onOpen: (a: TraderAttention) => void }) {
   return (
     <Card className="h-full">
       <CardHeader>
         <CardTitle className="text-heading-md">Needs attention</CardTitle>
-        <CardDescription>Overdue buyers, saas adjustments, wastage</CardDescription>
+        <CardDescription>Overdue buyers, CESS adjustments, wastage</CardDescription>
       </CardHeader>
       <div className="px-(--card-spacing)">
         {query.status === "loading" && <RowSkeleton label="Loading items that need attention" />}

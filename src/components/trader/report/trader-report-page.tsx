@@ -12,15 +12,15 @@ import { TextField } from "@/components/auth/text-field";
 import { BlockEmpty, BlockError } from "@/components/dashboard/block-states";
 import { BarChart, Legend } from "@/components/gate/bar-chart";
 import { PageHeader } from "@/components/gate/page-header";
-import { SaasBasis } from "@/components/trader/pills";
+import { CessBasis } from "@/components/trader/pills";
 import { downloadCsv } from "@/components/trader/collections/buyer-drawer";
 import { useAuth } from "@/lib/auth-store";
 import { getTraderReport, listBuyers, type TraderReportData, type TraderReportKind } from "@/lib/api/trader";
 import { forcedErrors } from "@/lib/api/gate";
 import { describeRange, resolveRange, toDayInput, type RangePreset } from "@/lib/domain/range";
-import { describeSaas } from "@/lib/domain/trader-math";
-import { saasConfig } from "@/lib/domain/trader-store";
-import { SAAS_LABEL } from "@/lib/domain/trader-types";
+import { describeCess } from "@/lib/domain/trader-math";
+import { cessConfig } from "@/lib/domain/trader-store";
+import { CESS_LABEL } from "@/lib/domain/trader-types";
 import { formatCompactInr, formatInr, formatQty, formatStamp } from "@/lib/format";
 import { useLiveQuery } from "@/hooks/use-live-query";
 import { useHotkey } from "@/hooks/use-hotkey";
@@ -29,7 +29,7 @@ import { cn } from "cn";
 
 const tabs: { id: TraderReportKind; label: string }[] = [
   { id: "purchase-sale", label: "Purchase vs Sale" },
-  { id: "saas", label: "Saas" },
+  { id: "cess", label: "CESS" },
   { id: "balances", label: "Buyer balances" },
   { id: "stock", label: "Stock" },
 ];
@@ -43,7 +43,7 @@ const presetOptions = [
 
 const statusFor: Record<TraderReportKind, { value: string; label: string }[]> = {
   "purchase-sale": [],
-  saas: [{ value: "", label: "All" }, { value: "Unpaid", label: "Unpaid" }, { value: "Partly paid", label: "Partly paid" }, { value: "Paid", label: "Paid" }],
+  cess: [{ value: "", label: "All" }, { value: "Unpaid", label: "Unpaid" }, { value: "Partly paid", label: "Partly paid" }, { value: "Paid", label: "Paid" }],
   balances: [{ value: "", label: "All" }, { value: "Paid", label: "Paid" }, { value: "Overdue", label: "Overdue" }, { value: "Partial", label: "Partial" }],
   stock: [{ value: "", label: "All" }, { value: "Remaining", label: "Remaining" }, { value: "Fully sold", label: "Fully sold" }, { value: "Wastage", label: "Wastage" }],
 };
@@ -90,16 +90,16 @@ function csvFor(d: TraderReportData): (string | number)[][] {
       ["Item", "Unit", "Purchased qty", "Sold qty", "Returned qty", "Wastage qty", "Stock left", "Value purchased", "Value sold", "Margin"],
       ...d.items.map((i) => [i.item, i.unit, i.purchased, i.sold, i.returned, i.wastage, i.left, i.valuePurchased, i.valueSold, Math.round(i.margin)]),
     ];
-  if (d.kind === "saas")
+  if (d.kind === "cess")
     return [
-      ["Buyer", "Saas computed", "Saas collected", "Saas pending"],
+      ["Buyer", "CESS computed", "CESS collected", "CESS pending"],
       ...d.buyers.map((b) => [b.buyer.name, b.computed, b.collected, b.pending]),
       ["Total", d.totals.computed, d.totals.collected, d.totals.pending],
     ];
   if (d.kind === "balances")
     return [
-      ["Buyer", "Opening", "Bills", "Returns", "Payments", "Closing goods", "Closing saas", "Closing total", "Overdue"],
-      ...d.rows.map((r) => [r.buyer.name, r.opening, r.bills, r.returns, r.payments, r.goodsClosing, r.saasClosing, r.closing, r.overdue ? "Yes" : "No"]),
+      ["Buyer", "Opening", "Bills", "Returns", "Payments", "Closing goods", "Closing CESS", "Closing total", "Overdue"],
+      ...d.rows.map((r) => [r.buyer.name, r.opening, r.bills, r.returns, r.payments, r.goodsClosing, r.cessClosing, r.closing, r.overdue ? "Yes" : "No"]),
     ];
   return [
     ["Item", "Unit", "Remaining", "Purchase rate", "Value", "Age (days)", "Flags"],
@@ -175,19 +175,19 @@ function Body({ data }: { data: TraderReportData }) {
     );
   }
 
-  if (data.kind === "saas") {
+  if (data.kind === "cess") {
     return (
       <div className="flex flex-col gap-8">
         <p className="text-sm text-muted-foreground">Rate basis: {data.rateNote}</p>
         <dl className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))]">
-          <Stat label={`${SAAS_LABEL} computed`} value={formatInr(data.totals.computed)} />
-          <Stat label={`${SAAS_LABEL} collected`} value={formatInr(data.totals.collected)} />
-          <Stat label={`${SAAS_LABEL} pending`} value={formatInr(data.totals.pending)} />
+          <Stat label={`${CESS_LABEL} computed`} value={formatInr(data.totals.computed)} />
+          <Stat label={`${CESS_LABEL} collected`} value={formatInr(data.totals.collected)} />
+          <Stat label={`${CESS_LABEL} pending`} value={formatInr(data.totals.pending)} />
         </dl>
         {data.days.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-heading-md">Saas per day</CardTitle>
+              <CardTitle className="text-heading-md">CESS per day</CardTitle>
               <CardDescription>Computed on bills and collected with payments</CardDescription>
             </CardHeader>
             <div className="flex flex-col gap-3 px-(--card-spacing)">
@@ -198,7 +198,7 @@ function Body({ data }: { data: TraderReportData }) {
                 axisWidth={52}
                 labelEvery={data.days.length > 12 ? 5 : 1}
                 format={formatCompactInr}
-                summary={`Saas computed ${formatInr(data.totals.computed)}, collected ${formatInr(data.totals.collected)}.`}
+                summary={`CESS computed ${formatInr(data.totals.computed)}, collected ${formatInr(data.totals.collected)}.`}
                 series={[
                   { name: "Computed", values: data.days.map((d) => d.computed), className: "fill-primary" },
                   { name: "Collected", values: data.days.map((d) => d.collected), className: "fill-tag" },
@@ -209,7 +209,7 @@ function Body({ data }: { data: TraderReportData }) {
         )}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[420px] text-[15px]">
-            <caption className="sr-only">Saas by buyer</caption>
+            <caption className="sr-only">CESS by buyer</caption>
             <thead>
               <tr className="h-10 border-b border-border text-left text-caption text-muted-foreground">
                 <th scope="col" className="font-normal">Buyer</th>
@@ -248,7 +248,7 @@ function Body({ data }: { data: TraderReportData }) {
       <div className="flex flex-col gap-8">
         <HBars
           title="Dues by buyer"
-          description="Closing balance, goods plus saas"
+          description="Closing balance, goods plus CESS"
           items={data.rows.filter((r) => r.closing > 0).map((r) => ({ label: r.buyer.name, value: r.closing }))}
           summary={`Total due ${formatInr(totalClosing)} across ${data.rows.filter((r) => r.closing > 0).length} buyers.`}
         />
@@ -263,7 +263,7 @@ function Body({ data }: { data: TraderReportData }) {
                 <th scope="col" className="hidden text-right font-normal @2xl:table-cell">Returns</th>
                 <th scope="col" className="hidden text-right font-normal @2xl:table-cell">Payments</th>
                 <th scope="col" className="text-right font-normal">Goods</th>
-                <th scope="col" className="text-right font-normal">Saas</th>
+                <th scope="col" className="text-right font-normal">CESS</th>
                 <th scope="col" className="text-right font-normal">Closing</th>
               </tr>
             </thead>
@@ -278,7 +278,7 @@ function Body({ data }: { data: TraderReportData }) {
                   <td className="hidden text-right tabular-nums @2xl:table-cell">{formatInr(r.returns)}</td>
                   <td className="hidden text-right tabular-nums @2xl:table-cell">{formatInr(r.payments)}</td>
                   <td className="text-right tabular-nums">{formatInr(r.goodsClosing)}</td>
-                  <td className="text-right tabular-nums">{formatInr(r.saasClosing)}</td>
+                  <td className="text-right tabular-nums">{formatInr(r.cessClosing)}</td>
                   <td className="text-right tabular-nums text-foreground">{formatInr(r.closing)}</td>
                 </tr>
               ))}
@@ -353,7 +353,7 @@ export function TraderReportPage() {
     getTraderReport(
       tab,
       { range: resolveRange(preset, Date.now(), { from, to }), buyerId: buyerId || undefined, item, status: status || undefined },
-      describeSaas(saasConfig()),
+      describeCess(cessConfig()),
       { forceError: a === 0 && forcedErrors().has("report") }
     )
   );
@@ -364,7 +364,7 @@ export function TraderReportPage() {
   const empty =
     query.status === "ready" &&
     ((query.data.kind === "purchase-sale" && query.data.items.length === 0) ||
-      (query.data.kind === "saas" && query.data.buyers.length === 0) ||
+      (query.data.kind === "cess" && query.data.buyers.length === 0) ||
       (query.data.kind === "balances" && query.data.rows.length === 0) ||
       (query.data.kind === "stock" && query.data.rows.length === 0));
   const statuses = statusFor[tab];
@@ -375,14 +375,14 @@ export function TraderReportPage() {
         <PrintBusiness />
         <h1 className="text-display-md">Trader report: {tabLabel}</h1>
         <p className="text-sm">
-          {rangeText} · Generated by {user?.name} on {formatStamp(now)} · <SaasBasis />
+          {rangeText} · Generated by {user?.name} on {formatStamp(now)} · <CessBasis />
         </p>
       </div>
 
       <div data-print-hide>
         <PageHeader
           title="Report"
-          description="Purchases and sales, saas, buyer balances and stock."
+          description="Purchases and sales, CESS, buyer balances and stock."
           actions={
             <>
               <Button variant="outline" onClick={() => window.print()} disabled={query.status !== "ready"}>
@@ -435,7 +435,7 @@ export function TraderReportPage() {
         <div className="grid grid-cols-1 gap-4 px-(--card-spacing) sm:grid-cols-2 xl:grid-cols-4">
           <SelectField id="tr-range" label="Date range" icon={<CalendarIcon aria-hidden="true" />} value={preset} onChange={(v) => setPreset(v as RangePreset)} options={presetOptions} />
           <SelectField id="tr-buyer" label="Buyer" value={buyerId} onChange={setBuyerId} options={[{ value: "", label: "All buyers" }, ...listBuyers().map((b) => ({ value: b.id, label: b.name }))]} disabled={tab === "stock"} />
-          <TextField id="tr-item" label="Item" value={item} onChange={setItem} placeholder="Any item" autoComplete="off" disabled={tab === "balances" || tab === "saas"} data-page-search />
+          <TextField id="tr-item" label="Item" value={item} onChange={setItem} placeholder="Any item" autoComplete="off" disabled={tab === "balances" || tab === "cess"} data-page-search />
           {statuses.length > 0 ? (
             <SelectField id="tr-status" label="Status" value={status} onChange={setStatus} options={statuses} />
           ) : (

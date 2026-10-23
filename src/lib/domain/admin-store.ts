@@ -4,7 +4,7 @@ import { DAY } from "./types";
 import { config, retentionMs, type BusinessInfo, type Gate } from "./settings";
 import { setCommission, getParty } from "./agent-store";
 import { describeCommission } from "./agent-math";
-import { describeSaas } from "./trader-math";
+import { describeCess } from "./trader-math";
 import { td } from "./trader-store";
 import { roleLabel, type RoleId } from "@/lib/roles";
 import type { CommissionType, Unit } from "./agent-types";
@@ -65,9 +65,9 @@ function ad(): AdminData {
     mk("Tara Shah", "tara.shah@company.com", "trader", "active", 50, 1 * hour),
     mk("Neha Rao", "neha.rao@company.com", "trader", "active", 20, 4 * DAY),
   ];
-  config.saas.since = today - 45 * DAY;
-  config.saas.lastChangedAt = today - 9 * DAY;
-  config.saas.lastChangedBy = "Asha Menon";
+  config.cess.since = today - 45 * DAY;
+  config.cess.lastChangedAt = today - 9 * DAY;
+  config.cess.lastChangedBy = "Asha Menon";
 
   const item = (label: string, unit: Unit): MasterEntry => ({ id: `m-${uid()}`, kind: "items", label, defaultUnit: unit, active: true });
   const simple = (kind: MasterKind, label: string, id?: string): MasterEntry => ({ id: id ?? `m-${uid()}`, kind, label, active: true });
@@ -89,7 +89,7 @@ function ad(): AdminData {
   ];
 
   const audit: AuditEntry[] = [
-    { id: `au-${uid()}`, at: today - 9 * DAY + 10 * hour, admin: "Asha Menon", category: "settings", entity: "Saas rate", entityLabel: "Saas (admin rate)", action: "rate_change", oldValue: "1.5% of goods value", newValue: "2% of goods value", href: "/settings" },
+    { id: `au-${uid()}`, at: today - 9 * DAY + 10 * hour, admin: "Asha Menon", category: "settings", entity: "CESS rate", entityLabel: "CESS (admin rate)", action: "rate_change", oldValue: "1.5% of goods value", newValue: "2% of goods value", href: "/settings" },
     { id: `au-${uid()}`, at: today - 20 * DAY + 11 * hour, admin: "Asha Menon", category: "users", entity: "User", entityLabel: "Neha Rao", action: "create", newValue: "Trader · Active" },
     { id: `au-${uid()}`, at: today - 12 * DAY + 15 * hour, admin: "Asha Menon", category: "users", entity: "User", entityLabel: "Kabir Anand", action: "deactivate", oldValue: "Active", newValue: "Inactive" },
   ];
@@ -134,7 +134,7 @@ export function userRecordCount(u: AppUser): number {
   );
 }
 
-export function createUser(input: { name: string; email: string; role: RoleId }, admin: string):
+export function createUser(input: { name: string; email: string; role: RoleId; password: string }, admin: string):
   | { ok: true; user: AppUser }
   | { ok: false; code: "duplicate" } {
   if (findUserByEmail(input.email)) return { ok: false, code: "duplicate" };
@@ -148,7 +148,7 @@ export function createUser(input: { name: string; email: string; role: RoleId },
     createdBy: admin,
     lastLoginAt: null,
     resetState: "none",
-    password: "1234",
+    password: input.password,
   };
   ad().users.unshift(user);
   note("users", admin, "User", user.name, "create", undefined, `${roleLabel(user.role)} · Active`, `/users?user=${user.id}`);
@@ -282,16 +282,16 @@ export function completePasswordReset(email: string, password: string) {
 
 // ---------- settings ----------
 
-export function saveSaas(input: { enabled: boolean; type: "percent" | "flat"; rate: number }, admin: string) {
-  const s = config.saas;
-  const before = describeSaas(s);
+export function saveCess(input: { enabled: boolean; type: "percent" | "flat"; rate: number }, admin: string) {
+  const s = config.cess;
+  const before = describeCess(s);
   s.enabled = input.enabled;
   s.type = input.type;
   s.rate = input.rate;
   s.since = Date.now();
   s.lastChangedAt = Date.now();
   s.lastChangedBy = admin;
-  note("settings", admin, "Saas rate", "Saas (admin rate)", "rate_change", before, describeSaas(s), "/settings");
+  note("settings", admin, "CESS rate", "CESS (admin rate)", "rate_change", before, describeCess(s), "/settings");
   commit();
 }
 
@@ -486,13 +486,13 @@ export function activityEvents(now: number): ActivityEvent[] {
     push({ id: p.id, at: p.date, role: "trader", user: "Tara Shah", type: "receipt", summary: `Purchase ${p.qty} ${p.unit} ${p.item} from ${p.seller}`, ref: p.item, payload: [["Item", p.item], ["Quantity", `${p.qty} ${p.unit}`], ["Rate", `₹${p.rate}`], ["Seller", p.seller]] });
   }
   for (const b of t.bills) {
-    push({ id: b.id, at: b.at, role: "trader", user: b.by, type: "sale", summary: `Bill ${b.no} to ${b.buyerName} · ₹${Math.round(b.payable).toLocaleString("en-IN")}`, ref: b.no, payload: [["Bill", b.no], ["Buyer", b.buyerName], ["Goods", `₹${b.goods}`], ["Saas", `₹${b.saas}${b.saasBasis ? ` (${b.saasBasis})` : ""}`], ["Payable", `₹${b.payable}`]] });
+    push({ id: b.id, at: b.at, role: "trader", user: b.by, type: "sale", summary: `Bill ${b.no} to ${b.buyerName} · ₹${Math.round(b.payable).toLocaleString("en-IN")}`, ref: b.no, payload: [["Bill", b.no], ["Buyer", b.buyerName], ["Goods", `₹${b.goods}`], ["CESS", `₹${b.cess}${b.cessBasis ? ` (${b.cessBasis})` : ""}`], ["Payable", `₹${b.payable}`]] });
   }
   for (const r of t.returns) {
-    push({ id: r.id, at: r.at, role: "trader", user: r.by, type: "return", summary: `Return ${r.qty} ${r.unit} ${r.item}`, ref: r.item, payload: [["Item", r.item], ["Quantity", `${r.qty} ${r.unit}`], ["Goods credit", `₹${r.goodsCredit}`], ["Saas adjustment pending", `₹${r.saasAdjust}`], ["Reason", r.reason]] });
+    push({ id: r.id, at: r.at, role: "trader", user: r.by, type: "return", summary: `Return ${r.qty} ${r.unit} ${r.item}`, ref: r.item, payload: [["Item", r.item], ["Quantity", `${r.qty} ${r.unit}`], ["Goods credit", `₹${r.goodsCredit}`], ["CESS adjustment pending", `₹${r.cessAdjust}`], ["Reason", r.reason]] });
   }
   for (const p of t.payments) {
-    push({ id: p.id, at: p.at, role: "trader", user: p.by, type: "payment", summary: `Received ₹${p.amount.toLocaleString("en-IN")} from ${t.buyers.find((b) => b.id === p.buyerId)?.name ?? "buyer"}`, ref: p.reference || p.mode, payload: [["Amount", `₹${p.amount}`], ["Goods part", `₹${p.goods}`], ["Saas part", `₹${p.saas}`], ["Mode", p.mode], ["Reference", p.reference]] });
+    push({ id: p.id, at: p.at, role: "trader", user: p.by, type: "payment", summary: `Received ₹${p.amount.toLocaleString("en-IN")} from ${t.buyers.find((b) => b.id === p.buyerId)?.name ?? "buyer"}`, ref: p.reference || p.mode, payload: [["Amount", `₹${p.amount}`], ["Goods part", `₹${p.goods}`], ["CESS part", `₹${p.cess}`], ["Mode", p.mode], ["Reference", p.reference]] });
   }
   for (const a of ad().audit) {
     push({ id: a.id, at: a.at, role: "admin", user: a.admin, type: typeOfCategory[a.category], summary: `${a.entity}: ${a.entityLabel} · ${a.action.replace(/_/g, " ")}`, ref: a.entityLabel, payload: [["Entity", a.entity], ["Name", a.entityLabel], ["Action", a.action]], oldValue: a.oldValue, newValue: a.newValue, href: a.href });
