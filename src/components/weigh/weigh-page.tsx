@@ -334,8 +334,8 @@ function WeighPanel({
       </div>
       <p className="text-caption text-muted-foreground">
         {stage === "gross"
-          ? "The weight, product and photo are saved on this truck&apos;s record with the time and your name."
-          : "The tare weight is saved on this truck&apos;s record with the time and your name."}
+          ? "The weight, product and photo are saved on this truck's record with the time and your name."
+          : "The tare weight is saved on this truck's record with the time and your name."}
       </p>
 
       <PhotoDialog

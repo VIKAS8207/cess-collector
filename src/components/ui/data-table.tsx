@@ -162,8 +162,34 @@ export function DataTable<T>({
   const visible = paged ? rows.slice((current - 1) * size, current * size) : rows;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="@container overflow-x-auto">
+    <div className="@container flex flex-col gap-4">
+      <ul className="flex flex-col gap-3 @md:hidden print:hidden" aria-label={caption}>
+        {visible.map((row) => {
+          const key = rowKey(row);
+          const main = columns.find((c) => c.primary) ?? columns[0];
+          const rest = columns.filter((c) => c !== main);
+          return (
+            <li
+              key={key}
+              className={cn("rounded-card border border-border p-4 transition-colors duration-700", highlightId === key && "bg-tag/40")}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 text-[15px] font-medium break-words text-foreground">{main.cell(row)}</div>
+                {actions && <RowMenu label={actionLabel ? actionLabel(row) : "Row actions"} actions={actions(row)} />}
+              </div>
+              <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-3">
+                {rest.map((c) => (
+                  <div key={c.key} className="min-w-0">
+                    <dt className="text-caption text-muted-foreground">{c.header}</dt>
+                    <dd className="text-[15px] break-words text-foreground">{c.cell(row)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="hidden overflow-x-auto @md:block">
         <table className="w-full text-[15px]" style={{ minWidth }}>
           <caption className="sr-only">{caption}</caption>
           <thead>
@@ -178,7 +204,7 @@ export function DataTable<T>({
                 </th>
               ))}
               {actions && (
-                <th scope="col" className="w-16 pr-0 text-right font-normal whitespace-nowrap print:hidden">
+                <th scope="col" className="sticky right-0 w-16 bg-card pr-0 pl-2 text-right font-normal whitespace-nowrap print:hidden">
                   Action
                 </th>
               )}
@@ -213,7 +239,7 @@ export function DataTable<T>({
                     );
                   })}
                   {actions && (
-                    <td className="text-right print:hidden">
+                    <td className="sticky right-0 bg-card pl-2 text-right shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)] print:hidden">
                       <div className="flex justify-end">
                         <RowMenu label={actionLabel ? actionLabel(row) : "Row actions"} actions={actions(row)} />
                       </div>
