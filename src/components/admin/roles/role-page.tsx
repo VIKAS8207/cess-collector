@@ -6,8 +6,14 @@ import { type Column } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { CreateUserForm } from "@/components/admin/users/create-user";
 import { ProfileForm } from "@/components/admin/roles/profile-form";
-import { RosterShell, type CreateSlotCtx } from "@/components/admin/roles/roster-shell";
-import { getRoleProfiles, submitCreateRoleProfile, type ProfileRow } from "@/lib/api/admin";
+import { RosterShell, type CreateSlotCtx, type EditSlotCtx } from "@/components/admin/roles/roster-shell";
+import {
+  getRoleProfiles,
+  submitCreateRoleProfile,
+  submitDeleteRoleProfile,
+  submitUpdateRoleProfile,
+  type ProfileRow,
+} from "@/lib/api/admin";
 import { profileConfigs, profileFields, type ProfileRoleId } from "@/lib/domain/role-profiles";
 import { formatDate } from "@/lib/format";
 
@@ -55,6 +61,28 @@ export function RoleRosterPage({ roleId, label }: { roleId: ProfileRoleId; label
       createHeading={`Create ${label}`}
       createHint="First the details, then the login credentials."
       renderCreate={(ctx) => <ProfileCreate roleId={roleId} label={label} ctx={ctx} />}
+      renderEdit={(row, ctx) => <ProfileEdit key={row.id} roleId={roleId} row={row} ctx={ctx} />}
+      onDelete={(row, admin) => submitDeleteRoleProfile(row.id, row.userId, admin)}
+      deleteMessage={(row) => `${row.name} and their login will be removed. Records they made stay as history. This cannot be undone.`}
+    />
+  );
+}
+
+function ProfileEdit({ roleId, row, ctx }: { roleId: ProfileRoleId; row: ProfileRow; ctx: EditSlotCtx }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <ProfileForm
+      role={roleId}
+      initial={{ ...row.values, name: row.name }}
+      submitLabel="Save changes"
+      busy={busy}
+      onCancel={ctx.close}
+      onNext={async (values) => {
+        setBusy(true);
+        await submitUpdateRoleProfile(roleId, row.id, values, ctx.admin);
+        setBusy(false);
+        ctx.saved(`${values.name} updated.`);
+      }}
     />
   );
 }

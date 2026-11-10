@@ -13,6 +13,8 @@ import { DashboardPage } from "@/components/dashboard/dashboard-page";
 import { ReportPage } from "@/components/report/report-page";
 import { DriverHome } from "@/components/driver/driver-home";
 import { MarketDashboard } from "@/components/market/market-dashboard";
+import { SupplierDashboard } from "@/components/supplier/supplier-dashboard";
+import { SupplierReportPage } from "@/components/supplier/supplier-report-page";
 import { WeighDashboard } from "@/components/weigh/weigh-dashboard";
 import { useAuth } from "@/lib/auth-store";
 
@@ -25,6 +27,7 @@ export function RoleDashboard() {
   if (user?.roleId === "weighbridge_operator") return <WeighDashboard />;
   if (user?.roleId === "marketplace") return <MarketDashboard />;
   if (user?.roleId === "driver") return <DriverHome />;
+  if (user?.roleId === "supplier") return <SupplierDashboard />;
   return <DashboardPage />;
 }
 
@@ -33,6 +36,7 @@ export function RoleReport() {
   if (user?.roleId === "commission_agent") return <AgentReportPage />;
   if (user?.roleId === "trader") return <TraderReportPage />;
   if (user?.roleId === "admin") return <AdminReportPage />;
+  if (user?.roleId === "supplier") return <SupplierReportPage />;
   return <ReportPage />;
 }
 

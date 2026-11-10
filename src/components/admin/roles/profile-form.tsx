@@ -27,14 +27,21 @@ export function ProfileForm({
   role,
   onNext,
   onCancel,
+  initial,
+  submitLabel = "Next",
+  busy = false,
 }: {
   role: ProfileRoleId;
   onNext: (values: Record<string, string>) => void;
   onCancel: () => void;
+  /** Start from a saved profile, for Edit. */
+  initial?: Record<string, string>;
+  submitLabel?: string;
+  busy?: boolean;
 }) {
   const config = profileConfigs[role];
   const all = config.sections.flatMap((s) => s.fields);
-  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(all.map((f) => [f.key, ""])));
+  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(all.map((f) => [f.key, initial?.[f.key] ?? ""])));
   const [attempted, setAttempted] = useState(false);
 
   const errors = Object.fromEntries(all.map((f) => [f.key, fieldError(f, values[f.key])]));
@@ -126,8 +133,8 @@ export function ProfileForm({
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" size="lg">
-          Next
+        <Button type="submit" size="lg" disabled={busy} aria-busy={busy}>
+          {submitLabel}
         </Button>
       </div>
     </form>

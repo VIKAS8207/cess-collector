@@ -181,6 +181,18 @@ export function setUserActive(id: string, active: boolean, admin: string): AppUs
   return u;
 }
 
+/** Removes the login. Records the user made stay, as history under their name. */
+export function deleteUser(id: string, admin: string): AppUser | null {
+  const list = ad().users;
+  const i = list.findIndex((u) => u.id === id);
+  if (i < 0) return null;
+  const [u] = list.splice(i, 1);
+  ad().otps.delete(u.id);
+  note("users", admin, "User", u.name, "delete", `${roleLabel(u.role)} · ${u.status === "active" ? "Active" : "Inactive"}`, "Deleted");
+  commit();
+  return u;
+}
+
 export function otpFor(userId: string) {
   return ad().otps.get(userId);
 }

@@ -1,10 +1,12 @@
 "use client";
 
 import { useRef, useState, type ReactNode } from "react";
-import { EyeIcon, PlusIcon, SearchIcon, UsersIcon } from "lucide-react";
+import { EyeIcon, PencilIcon, PlusIcon, SearchIcon, Trash2Icon, UsersIcon } from "lucide-react";
 import { DataTable, type Column, type RowAction } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import type { DeleteResult } from "@/lib/api/admin";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BlockEmpty, BlockError } from "@/components/dashboard/block-states";
@@ -24,6 +26,14 @@ export type CreateSlotCtx = {
   close: () => void;
   /** Close the form, highlight the new row and show a toast. */
   created: (id: string, name: string, message?: string) => void;
+};
+
+/** What the edit slot gets: enough to close itself and report a save. */
+export type EditSlotCtx = {
+  admin: string;
+  close: () => void;
+  /** Close the form, highlight the row and show a toast. */
+  saved: (message?: string) => void;
 };
 
 /**
@@ -48,6 +58,12 @@ export function RosterShell<T>({
   createHeading,
   createHint,
   renderCreate,
+  renderEdit,
+  onDelete,
+  deleteMessage,
+  extraActions,
+  canEdit,
+  aboveTable,
 }: {
   roleId: string;
   label: string;
@@ -67,6 +83,18 @@ export function RosterShell<T>({
   createHeading: string;
   createHint?: string;
   renderCreate: (ctx: CreateSlotCtx) => ReactNode;
+  /** When set, rows get an Edit action that opens this form above the table. */
+  renderEdit?: (row: T, ctx: EditSlotCtx) => ReactNode;
+  /** When set, rows get a Delete action with a confirm step. */
+  onDelete?: (row: T, admin: string) => Promise<DeleteResult>;
+  /** What the confirm popup says. Defaults to a plain sentence. */
+  deleteMessage?: (row: T) => string;
+  /** Page-specific row actions, shown before Edit and Delete. */
+  extraActions?: (row: T) => RowAction[];
+  /** Hide Edit on rows that are locked. Defaults to every row. */
+  canEdit?: (row: T) => boolean;
+  /** Shown between the header and the table, e.g. a summary. */
+  aboveTable?: ReactNode;
 }) {
   const { user } = useAuth();
   const toast = useToast();
@@ -75,6 +103,10 @@ export function RosterShell<T>({
   const [q, setQ] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<T | null>(null);
+  const [deleting, setDeleting] = useState<T | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<string | null>(null);
 
   const list = useLiveQuery(`roster:${roleId}:${q}`, () => load(q));
@@ -82,12 +114,53 @@ export function RosterShell<T>({
 
   const rows = list.status === "ready" ? list.data : [];
 
-  const rowActions = viewRow
-    ? (row: T): RowAction[] => {
-        const id = viewRow(row);
-        return id ? [{ label: "View", icon: EyeIcon, onSelect: () => setOpenId(id) }] : [];
-      }
-    : undefined;
+  const flash = (id: string) => {
+    setHighlight(id);
+    setTimeout(() => setHighlight((h) => (h === id ? null : h)), 3000);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleting || !onDelete) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    const res = await onDelete(deleting, admin);
+    setDeleteBusy(false);
+    if (res.ok) {
+      toast.push(`${rowName(deleting)} deleted.`);
+      setDeleting(null);
+    } else setDeleteError(res.reason);
+  };
+
+  // Every row gets an action, so the three-dot menu is never empty.
+  const rowActions =
+    viewRow || renderEdit || onDelete || extraActions
+      ? (row: T): RowAction[] => {
+          const acts: RowAction[] = [];
+          const id = viewRow?.(row);
+          if (id) acts.push({ label: "View", icon: EyeIcon, onSelect: () => setOpenId(id) });
+          if (extraActions) acts.push(...extraActions(row));
+          if (renderEdit && (canEdit?.(row) ?? true))
+            acts.push({
+              label: "Edit",
+              icon: PencilIcon,
+              onSelect: () => {
+                setCreating(false);
+                setEditing(row);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              },
+            });
+          if (onDelete)
+            acts.push({
+              label: "Delete",
+              icon: Trash2Icon,
+              onSelect: () => {
+                setDeleteError(null);
+                setDeleting(row);
+              },
+            });
+          return acts;
+        }
+      : undefined;
 
   return (
     <div className="flex flex-col gap-8 lg:gap-10">
@@ -100,13 +173,39 @@ export function RosterShell<T>({
               Close form
             </Button>
           ) : (
-            <Button onClick={() => setCreating(true)}>
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setCreating(true);
+              }}
+            >
               <PlusIcon aria-hidden="true" />
               Create
             </Button>
           )
         }
       />
+
+      {editing && renderEdit && (
+        <Card className="gap-6" aria-label={`Edit ${rowName(editing)}`}>
+          <div className="flex flex-col gap-1 px-(--card-spacing)">
+            <h2 className="text-heading-md text-foreground">Edit {rowName(editing)}</h2>
+            <p className="text-sm text-muted-foreground">Change the details and save. The login stays as it is.</p>
+          </div>
+          <div className="px-(--card-spacing)">
+            {renderEdit(editing, {
+              admin,
+              close: () => setEditing(null),
+              saved: (message) => {
+                const id = rowKey(editing);
+                setEditing(null);
+                flash(id);
+                toast.push(message ?? `${rowName(editing)} updated.`);
+              },
+            })}
+          </div>
+        </Card>
+      )}
 
       {creating && (
         <Card className="gap-6" aria-label={createHeading}>
@@ -128,6 +227,8 @@ export function RosterShell<T>({
           </div>
         </Card>
       )}
+
+      {aboveTable}
 
       <Card className="gap-4">
         <div className="grid gap-4 px-(--card-spacing) sm:grid-cols-2">
@@ -194,7 +295,7 @@ export function RosterShell<T>({
               highlightId={highlight}
               pageSize={10}
               minWidth={minWidth}
-              actionLabel={viewRow ? (row) => `Actions for ${rowName(row)}` : undefined}
+              actionLabel={rowActions ? (row) => `Actions for ${rowName(row)}` : undefined}
               actions={rowActions}
             />
           )}
@@ -202,6 +303,21 @@ export function RosterShell<T>({
       </Card>
 
       {viewRow && <UserDrawer id={openId} admin={admin} onClose={() => setOpenId(null)} />}
+      {onDelete && (
+        <ConfirmDialog
+          open={!!deleting}
+          title={deleting ? `Delete ${rowName(deleting)}?` : "Delete"}
+          message={
+            deleting
+              ? deleteMessage?.(deleting) ?? `${rowName(deleting)} and their login will be removed. This cannot be undone.`
+              : ""
+          }
+          busy={deleteBusy}
+          error={deleteError}
+          onConfirm={confirmDelete}
+          onClose={() => setDeleting(null)}
+        />
+      )}
     </div>
   );
 }

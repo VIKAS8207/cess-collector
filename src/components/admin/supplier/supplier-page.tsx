@@ -5,10 +5,16 @@ import { ArrowLeftIcon, TruckIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { type Column } from "@/components/ui/data-table";
-import { RosterShell } from "@/components/admin/roles/roster-shell";
+import { RosterShell, type EditSlotCtx } from "@/components/admin/roles/roster-shell";
 import { SupplierForm } from "@/components/admin/supplier/supplier-form";
 import { CreateUserForm } from "@/components/admin/users/create-user";
-import { getSuppliers, submitCreateSupplier, type SupplierProfile } from "@/lib/api/admin";
+import {
+  getSuppliers,
+  submitCreateSupplier,
+  submitDeleteSupplier,
+  submitUpdateSupplier,
+  type SupplierProfile,
+} from "@/lib/api/admin";
 import { formatDate } from "@/lib/format";
 import type { SupplierRecord } from "@/lib/domain/admin-types";
 
@@ -69,6 +75,27 @@ export function SupplierPage() {
       createHeading="Create supplier"
       createHint="First the supplier details, then the login credentials."
       renderCreate={(ctx) => <SupplierCreate admin={ctx.admin} onDone={ctx.created} onCancel={ctx.close} />}
+      renderEdit={(s, ctx) => <SupplierEdit key={s.id} supplier={s} ctx={ctx} />}
+      onDelete={(s, admin) => submitDeleteSupplier(s.id, admin)}
+      deleteMessage={(s) => `${s.name}, their ${s.vehicleCount === 1 ? "vehicle" : "vehicles"} and their login will be removed. This cannot be undone.`}
+    />
+  );
+}
+
+function SupplierEdit({ supplier, ctx }: { supplier: SupplierRecord; ctx: EditSlotCtx }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <SupplierForm
+      initial={{ name: supplier.name, state: supplier.state, city: supplier.city, commodities: supplier.commodities, plates: supplier.plates, userId: supplier.userId }}
+      submitLabel="Save changes"
+      busy={busy}
+      onCancel={ctx.close}
+      onNext={async (profile) => {
+        setBusy(true);
+        await submitUpdateSupplier(supplier.id, profile);
+        setBusy(false);
+        ctx.saved(`${profile.name} updated.`);
+      }}
     />
   );
 }

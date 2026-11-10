@@ -10,6 +10,7 @@ import {
   LayoutDashboardIcon,
   LogInIcon,
   LogOutIcon,
+  PackageIcon,
   ScaleIcon,
   SearchCheckIcon,
   SplitIcon,
@@ -71,7 +72,8 @@ export const navByRole: Record<RoleId, NavGroup[]> = {
   ],
   supplier: [
     { label: "Overview", items: [dashboard] },
-    { label: "Supplier", items: [{ label: "Supplier", href: "/supplier", icon: HandshakeIcon }] },
+    { label: "Supply", items: [{ label: "Dispatches", href: "/dispatches", icon: PackageIcon }] },
+    { label: "Insights", items: [{ label: "Report", href: "/report", icon: FileBarChartIcon }] },
   ],
   admin: [
     { label: "Overview", items: [dashboard] },
@@ -79,6 +81,7 @@ export const navByRole: Record<RoleId, NavGroup[]> = {
       label: "Roles",
       items: [
         { label: "Supplier", href: "/supplier", icon: HandshakeIcon },
+        { label: "Dispatches", href: "/dispatches", icon: PackageIcon },
         { label: "Commission agent", href: "/roles/commission-agent", icon: SplitIcon },
         { label: "Weight bridge operator", href: "/roles/weighbridge-operator", icon: ScaleIcon },
         { label: "Market place", href: "/roles/marketplace", icon: SearchCheckIcon },

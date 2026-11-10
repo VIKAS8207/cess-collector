@@ -2,15 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CopyIcon, KeyRoundIcon } from "lucide-react";
+import { CopyIcon, KeyRoundIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Pill } from "@/components/ui/pill";
 import { SelectField } from "@/components/ui/select-field";
 import { Spinner } from "@/components/ui/spinner";
 import { FormBanner } from "@/components/auth/form-banner";
 import { SideDrawer } from "@/components/gate/side-drawer";
 import { useToast } from "@/components/gate/toast";
-import { submitRevokeOtp, submitSendOtp, submitUserActive, submitUserRole, userAudit } from "@/lib/api/admin";
+import { submitDeleteUser, submitRevokeOtp, submitSendOtp, submitUserActive, submitUserRole, userAudit } from "@/lib/api/admin";
 import { getUser, otpLastSent, userRecordCount } from "@/lib/domain/admin-store";
 import { config } from "@/lib/domain/settings";
 import { useStoreVersion } from "@/lib/domain/store";
@@ -37,7 +38,7 @@ export function UserDrawer({ id, admin, onClose }: { id: string | null; admin: s
         )
       }
     >
-      {user && <Body key={user.id} userId={user.id} admin={admin} />}
+      {user && <Body key={user.id} userId={user.id} admin={admin} onDeleted={onClose} />}
     </SideDrawer>
   );
 }
@@ -51,9 +52,12 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Body({ userId, admin }: { userId: string; admin: string }) {
+function Body({ userId, admin, onDeleted }: { userId: string; admin: string; onDeleted: () => void }) {
   const user = getUser(userId)!;
   const toast = useToast();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const records = userRecordCount(user);
   const [role, setRole] = useState<RoleId>(user.role);
   const [savingRole, setSavingRole] = useState(false);
@@ -83,6 +87,18 @@ function Body({ userId, admin }: { userId: string; admin: string }) {
     setToggling(false);
     setConfirmOff(false);
     toast.push(wasActive ? `${user.name} is now inactive.` : `${user.name} is active again.`);
+  };
+
+  const remove = async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    const res = await submitDeleteUser(user.id, admin);
+    setDeleting(false);
+    if (res.ok) {
+      setConfirmDelete(false);
+      toast.push(`${user.name} deleted.`);
+      onDeleted();
+    } else setDeleteError(res.reason);
   };
 
   const send = async () => {
@@ -201,7 +217,26 @@ function Body({ userId, admin }: { userId: string; admin: string }) {
             Activate
           </Button>
         )}
-        <p className="text-caption text-muted-foreground">Users cannot be deleted. Deactivate instead.</p>
+      </section>
+
+      <section className="flex flex-col gap-4" aria-labelledby="ud-delete">
+        <h3 id="ud-delete" className="text-heading-md text-foreground">Delete user</h3>
+        <p className="text-sm text-muted-foreground">
+          Removes the login and the person&apos;s profile.{records > 0 ? ` The ${records} records they made stay as history.` : ""} To keep them but stop access, deactivate instead.
+        </p>
+        <Button variant="destructive" className="self-start" onClick={() => setConfirmDelete(true)}>
+          <Trash2Icon aria-hidden="true" />
+          Delete user
+        </Button>
+        <ConfirmDialog
+          open={confirmDelete}
+          title={`Delete ${user.name}?`}
+          message="The login and profile will be removed. This cannot be undone."
+          busy={deleting}
+          error={deleteError}
+          onConfirm={remove}
+          onClose={() => setConfirmDelete(false)}
+        />
       </section>
 
       <section className="flex flex-col gap-3" aria-labelledby="ud-activity">

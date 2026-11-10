@@ -86,17 +86,24 @@ const MAX_VEHICLES = 20;
 export function SupplierForm({
   onNext,
   onCancel,
+  initial,
+  submitLabel = "Next",
+  busy = false,
 }: {
   onNext: (profile: SupplierProfile) => void;
   onCancel: () => void;
+  /** Start from a saved supplier, for Edit. */
+  initial?: SupplierProfile;
+  submitLabel?: string;
+  busy?: boolean;
 }) {
-  const [name, setName] = useState("");
-  const [state, setState] = useState("");
-  const [city, setCity] = useState("");
-  const [commodities, setCommodities] = useState<string[]>([]);
+  const [name, setName] = useState(initial?.name ?? "");
+  const [state, setState] = useState(initial?.state ?? "");
+  const [city, setCity] = useState(initial?.city ?? "");
+  const [commodities, setCommodities] = useState<string[]>(initial?.commodities ?? []);
   const [commodityInput, setCommodityInput] = useState("");
-  const [vehicleCount, setVehicleCount] = useState("");
-  const [plates, setPlates] = useState<string[]>([]);
+  const [vehicleCount, setVehicleCount] = useState(initial ? String(initial.plates.length) : "");
+  const [plates, setPlates] = useState<string[]>(initial?.plates ?? []);
   const [attempted, setAttempted] = useState(false);
 
   const count = Number(vehicleCount) || 0;
@@ -269,8 +276,8 @@ export function SupplierForm({
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" size="lg">
-          Next
+        <Button type="submit" size="lg" disabled={busy} aria-busy={busy}>
+          {submitLabel}
         </Button>
       </div>
     </form>

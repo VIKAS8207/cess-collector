@@ -39,6 +39,7 @@ import {
   allUsers,
   changePartyCommission,
   createUser,
+  deleteUser,
   getUser,
   recentBlockedOtp,
   renameGate,
@@ -58,8 +59,8 @@ import {
   userRecordCount,
 } from "@/lib/domain/admin-store";
 import type { ActivityEvent, ActivityType, AppUser, MasterKind, SupplierRecord } from "@/lib/domain/admin-types";
-import { addSupplier, allSuppliers } from "@/lib/domain/supplier-store";
-import { addProfile, allProfiles, type ProfileRoleId } from "@/lib/domain/role-profiles";
+import { addSupplier, allSuppliers, deleteSupplier, updateSupplier } from "@/lib/domain/supplier-store";
+import { addProfile, allProfiles, deleteProfile, updateProfile, type ProfileRoleId } from "@/lib/domain/role-profiles";
 import type { Allocation, CommissionType, Unit } from "@/lib/domain/agent-types";
 import { roleLabel, roles, type RoleId } from "@/lib/roles";
 
@@ -331,6 +332,54 @@ export function getRoleProfiles(role: ProfileRoleId, f: { q?: string } = {}, opt
 export async function submitCreateRoleProfile(role: ProfileRoleId, values: Record<string, string>, userId: string, admin: string) {
   await delay();
   return addProfile(role, values, admin, userId);
+}
+
+/** Save new details for a roster row. Logins that never had a profile get one now. */
+export async function submitUpdateRoleProfile(role: ProfileRoleId, id: string, values: Record<string, string>, admin: string) {
+  await delay();
+  if (updateProfile(id, values)) return true;
+  const u = getUser(id);
+  if (!u) return false;
+  addProfile(role, values, admin, u.id);
+  return true;
+}
+
+export type DeleteResult = { ok: true } | { ok: false; reason: string };
+
+/** Delete a roster row: its profile and its login. Records it made stay as history. */
+export async function submitDeleteRoleProfile(id: string, userId: string | null, admin: string): Promise<DeleteResult> {
+  await delay();
+  deleteProfile(id);
+  const uid = userId ?? (getUser(id) ? id : null);
+  if (uid) deleteUser(uid, admin);
+  return { ok: true };
+}
+
+export async function submitUpdateSupplier(id: string, profile: SupplierProfile) {
+  await delay();
+  return updateSupplier(id, profile);
+}
+
+export async function submitDeleteSupplier(id: string, admin: string): Promise<DeleteResult> {
+  await delay();
+  const gone = deleteSupplier(id);
+  if (gone?.userId) deleteUser(gone.userId, admin);
+  return { ok: true };
+}
+
+/** Delete a login. The signed-in admin and the last active admin cannot be deleted. */
+export async function submitDeleteUser(id: string, admin: string): Promise<DeleteResult> {
+  await delay(300, 500);
+  const u = getUser(id);
+  if (!u) return { ok: false, reason: "This user no longer exists." };
+  if (u.name === admin) return { ok: false, reason: "You cannot delete your own account." };
+  if (u.role === "admin" && u.status === "active" && allUsers().filter((x) => x.role === "admin" && x.status === "active").length <= 1)
+    return { ok: false, reason: "At least one active admin must remain." };
+  // Take the person's profile or supplier record with the login.
+  for (const p of allProfiles().filter((p) => p.userId === id)) deleteProfile(p.id);
+  for (const s of allSuppliers().filter((s) => s.userId === id)) deleteSupplier(s.id);
+  deleteUser(id, admin);
+  return { ok: true };
 }
 
 export async function submitUserRole(id: string, role: RoleId, admin: string) {

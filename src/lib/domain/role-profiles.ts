@@ -2,6 +2,7 @@ import { commit } from "./store";
 import { startOfDay } from "./seed";
 import { DAY } from "./types";
 import { allSuppliers } from "./supplier-store";
+import { pendingDispatchFor } from "./dispatch-store";
 
 /** Roles that register a business profile before the login is created. */
 export type ProfileRoleId = "commission_agent" | "weighbridge_operator" | "marketplace" | "driver" | "trader";
@@ -219,22 +220,50 @@ export function registeredVehicle(plate: string): RegisteredVehicle | null {
   if (!key) return null;
   const driver = allProfiles().find((p) => p.role === "driver" && plateKey(p.values.plate ?? "") === key);
   const supplier = allSuppliers().find((s) => s.plates.some((x) => plateKey(x) === key));
-  if (!driver && !supplier) return null;
+  // A supplier's dispatch for this plate is the freshest word on today's trip.
+  const dispatch = pendingDispatchFor(plate);
+  if (!driver && !supplier && !dispatch) return null;
   return {
-    driverName: driver?.name ?? "",
-    driverPhone: driver?.values.phone ?? "",
-    transporter: driver?.values.transporter ?? "",
-    supplier: supplier?.name ?? "",
-    commodity: supplier?.commodities.join(", ") ?? "",
+    driverName: dispatch?.driverName || driver?.name || "",
+    driverPhone: dispatch?.driverPhone || driver?.values.phone || "",
+    transporter: dispatch?.transporter || driver?.values.transporter || "",
+    supplier: dispatch?.supplierName || supplier?.name || "",
+    commodity: dispatch?.commodity || supplier?.commodities.join(", ") || "",
   };
 }
 
-export function addProfile(role: ProfileRoleId, values: Record<string, string>, admin: string, userId?: string): RoleProfile {
+function cleanValues(role: ProfileRoleId, values: Record<string, string>) {
   const clean: Record<string, string> = {};
   for (const f of profileFields(role)) {
     const raw = (values[f.key] ?? "").trim();
     clean[f.key] = f.upper ? raw.toUpperCase().replace(/\s+/g, "") : raw;
   }
+  return clean;
+}
+
+export const getProfile = (id: string) => allProfiles().find((p) => p.id === id);
+
+/** Replace a profile's details. Returns null when it no longer exists. */
+export function updateProfile(id: string, values: Record<string, string>): RoleProfile | null {
+  const p = getProfile(id);
+  if (!p) return null;
+  p.values = cleanValues(p.role, values);
+  p.name = p.values.name;
+  commit();
+  return p;
+}
+
+export function deleteProfile(id: string): boolean {
+  const list = allProfiles();
+  const i = list.findIndex((p) => p.id === id);
+  if (i < 0) return false;
+  list.splice(i, 1);
+  commit();
+  return true;
+}
+
+export function addProfile(role: ProfileRoleId, values: Record<string, string>, admin: string, userId?: string): RoleProfile {
+  const clean = cleanValues(role, values);
   const record: RoleProfile = { id: `prof-${uid()}`, role, name: clean.name, values: clean, createdAt: Date.now(), createdBy: admin, userId };
   allProfiles().unshift(record);
   commit();

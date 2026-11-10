@@ -37,6 +37,33 @@ function seed(): SupplierRecord[] {
 
 export const allSuppliers = () => (rows ??= seed());
 
+export const getSupplier = (id: string) => allSuppliers().find((s) => s.id === id);
+
+export function updateSupplier(
+  id: string,
+  input: { name: string; state: string; city: string; commodities: string[]; plates: string[] }
+): SupplierRecord | null {
+  const s = getSupplier(id);
+  if (!s) return null;
+  s.name = input.name.trim();
+  s.state = input.state;
+  s.city = input.city.trim();
+  s.commodities = input.commodities;
+  s.plates = input.plates;
+  s.vehicleCount = input.plates.length;
+  commit();
+  return s;
+}
+
+export function deleteSupplier(id: string): SupplierRecord | null {
+  const list = allSuppliers();
+  const i = list.findIndex((s) => s.id === id);
+  if (i < 0) return null;
+  const [gone] = list.splice(i, 1);
+  commit();
+  return gone;
+}
+
 export function addSupplier(
   input: { name: string; state: string; city: string; commodities: string[]; plates: string[]; userId?: string },
   admin: string
