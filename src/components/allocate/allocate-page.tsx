@@ -142,6 +142,7 @@ function TruckStrip({ movement }: { movement: Movement }) {
         <span className="text-[17px] break-all text-foreground">{movement.plate || "No plate"}</span>
         <span className="text-caption text-muted-foreground">
           {movement.entryNo} · {movement.driverName} · {movement.vehicleType}
+          {movement.supplier ? ` · ${movement.supplier}` : ""}
         </span>
       </div>
       <StatusPill movement={movement} />
@@ -166,10 +167,13 @@ function TruckSteps({
   const earlier = getVehicleAllocations(movement.id);
   const last = earlier[0];
   const traderList = activeTraders();
-  const [product, setProduct] = useState(last?.product ?? "");
+  // Product: last allocation, else what the bridge saw, else the supplier's single commodity.
+  const [product, setProduct] = useState(
+    last?.product || weighSummary(movement).product || (movement.commodity && !movement.commodity.includes(",") ? movement.commodity : "")
+  );
   const [unit, setUnit] = useState<Unit>(last?.unit ?? "bags");
   const [photo, setPhoto] = useState<string | null>(last?.photo ?? null);
-  const [supplier, setSupplier] = useState(last?.supplier ?? "");
+  const [supplier, setSupplier] = useState(last?.supplier ?? movement.supplier ?? "");
   const [origin, setOrigin] = useState(last?.origin ?? "");
   const [challan, setChallan] = useState(last?.challanNo ?? "");
   const [camOpen, setCamOpen] = useState(false);
@@ -338,7 +342,7 @@ function TruckSteps({
               value={product}
               onChange={setProduct}
               error={triedStep === 2 ? productError : undefined}
-              hint="Choose from the list or type it."
+              hint={movement.commodity ? `Registered commodity: ${movement.commodity}.` : "Choose from the list or type it."}
               autoComplete="off"
             />
             <SelectField id="al-unit" label="Unit" value={unit} onChange={(v) => setUnit(v as Unit)} options={unitOptions} />

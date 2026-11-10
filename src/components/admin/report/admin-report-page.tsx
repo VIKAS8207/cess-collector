@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { CalendarIcon, DownloadIcon, FileBarChartIcon, PrinterIcon } from "lucide-react";
+import { Fragment, useState } from "react";
+import { CalendarIcon, ChevronRightIcon, DownloadIcon, FileBarChartIcon, PrinterIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
@@ -26,6 +26,7 @@ import { useNow } from "@/hooks/use-now";
 import { cn } from "cn";
 
 const tabs: { id: AdminReportKind; label: string }[] = [
+  { id: "master", label: "Master report" },
   { id: "operations", label: "Operations" },
   { id: "money", label: "Money" },
   { id: "balances", label: "Party balances" },
@@ -54,6 +55,15 @@ function Stat({ label, value, note }: { label: string; value: string; note?: str
 const statGrid = "grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))]";
 
 function csvFor(d: AdminReportData): (string | number)[][] {
+  if (d.kind === "master")
+    return [
+      ["Entry no", "Plate", "Entry date", "Driver", "Supplier", "Commodity", "Goods sold", "Net weight (kg)", "Sold value", "CESS due", "CESS collected", "CESS pending"],
+      ...d.rows.map((r) => [r.entryNo, r.plate, r.entryAt ? formatStamp(r.entryAt) : "", r.driver, r.supplier, r.commodity, r.goods, r.netKg ?? "", r.sold, r.cess, r.cessCollected, r.cessPending]),
+      ["Total", "", "", "", "", "", "", "", d.totals.sold, d.totals.cess, d.totals.cessCollected, d.totals.cessPending],
+      [],
+      ["Allocation", "Plate", "Trader", "Product", "Quantity", "Unit", "Rate", "Amount", "Bill no", "CESS", "CESS collected"],
+      ...d.rows.flatMap((r) => r.lines.map((l) => [l.no, r.plate, l.trader, l.product, l.qty, l.unit, l.rate, l.amount, l.billNo, l.cess, l.cessPaid])),
+    ];
   if (d.kind === "operations")
     return [["Day", "In", "Out", "Inside at end of day"], ...d.days.map((x) => [x.label, x.in, x.out, x.inside])];
   if (d.kind === "money")
@@ -83,7 +93,134 @@ function csvFor(d: AdminReportData): (string | number)[][] {
   ];
 }
 
+function MasterBody({ data }: { data: Extract<AdminReportData, { kind: "master" }> }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const t = data.totals;
+  const kg = (n: number | null) => (n === null ? "—" : `${formatNumber(n)} kg`);
+  return (
+    <div className="flex flex-col gap-8">
+      <dl className={statGrid}>
+        <Stat label="CESS collected" value={formatInr(t.cessCollected)} note={`of ${formatInr(t.cess)} due`} />
+        <Stat label="CESS pending" value={formatInr(t.cessPending)} />
+        <Stat label="Goods sold" value={formatInr(t.sold)} />
+        <Stat label="Vehicles" value={formatNumber(t.vehicles)} note={`${t.allocated} allocated to traders`} />
+      </dl>
+
+      <div className="@container overflow-x-auto">
+        <table className="w-full min-w-[640px] text-[15px]">
+          <caption className="mb-2 text-left text-heading-md text-foreground">Vehicle, goods, sales and CESS</caption>
+          <thead>
+            <tr className="h-10 border-b border-border text-left text-caption text-muted-foreground">
+              <th scope="col" className="font-normal">Vehicle</th>
+              <th scope="col" className="hidden font-normal @xl:table-cell">Supplier</th>
+              <th scope="col" className="hidden font-normal @lg:table-cell">Goods</th>
+              <th scope="col" className="hidden text-right font-normal @2xl:table-cell">Net weight</th>
+              <th scope="col" className="text-right font-normal">Sold</th>
+              <th scope="col" className="hidden text-right font-normal @xl:table-cell">CESS due</th>
+              <th scope="col" className="text-right font-normal">CESS collected</th>
+              <th scope="col" className="hidden text-right font-normal @lg:table-cell">Pending</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.rows.length === 0 && (
+              <tr><td colSpan={8} className="py-3 text-sm text-muted-foreground">No vehicles in this range.</td></tr>
+            )}
+            {data.rows.map((r) => {
+              const expanded = open === r.movementId;
+              const canOpen = r.lines.length > 0;
+              return (
+                <Fragment key={r.movementId}>
+                  <tr className="border-b border-border align-top">
+                    <th scope="row" className="py-3 pr-3 text-left font-normal">
+                      <button
+                        type="button"
+                        disabled={!canOpen}
+                        aria-expanded={canOpen ? expanded : undefined}
+                        aria-label={canOpen ? `${expanded ? "Hide" : "Show"} traders for ${r.plate || r.entryNo}` : undefined}
+                        onClick={() => setOpen(expanded ? null : r.movementId)}
+                        className="flex items-start gap-2 rounded-field text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-default"
+                      >
+                        <ChevronRightIcon aria-hidden="true" className={cn("mt-1 size-4 shrink-0 text-muted-foreground transition-transform", expanded && "rotate-90", !canOpen && "invisible")} />
+                        <span className="flex flex-col">
+                          <span className="text-foreground">{r.plate || "No plate"}</span>
+                          <span className="text-caption text-muted-foreground">
+                            {r.entryNo} · {r.entryAt ? formatDate(r.entryAt) : "—"} · {r.driver}
+                          </span>
+                        </span>
+                      </button>
+                    </th>
+                    <td className="hidden py-3 pr-3 @xl:table-cell">{r.supplier || "—"}</td>
+                    <td className="hidden max-w-56 py-3 pr-3 @lg:table-cell">
+                      {r.goods || <span className="text-muted-foreground">{r.commodity ? `${r.commodity} · not allocated` : "Not allocated"}</span>}
+                    </td>
+                    <td className="hidden py-3 text-right tabular-nums @2xl:table-cell">{kg(r.netKg)}</td>
+                    <td className="py-3 text-right tabular-nums">{r.sold ? formatInr(r.sold) : "—"}</td>
+                    <td className="hidden py-3 text-right tabular-nums @xl:table-cell">{r.cess ? formatInr(r.cess) : "—"}</td>
+                    <td className="py-3 text-right tabular-nums text-foreground">{r.cess ? formatInr(r.cessCollected) : "—"}</td>
+                    <td className="hidden py-3 text-right tabular-nums @lg:table-cell">
+                      {r.cessPending > 0 ? <Pill tone="danger">{formatInr(r.cessPending)}</Pill> : r.cess ? "Paid" : "—"}
+                    </td>
+                  </tr>
+                  {expanded && (
+                    <tr className="border-b border-border bg-muted">
+                      <td colSpan={8} className="px-4 py-3">
+                        <table className="w-full text-sm">
+                          <caption className="sr-only">Traders for {r.plate || r.entryNo}</caption>
+                          <thead>
+                            <tr className="text-left text-caption text-muted-foreground">
+                              <th scope="col" className="py-1 font-normal">Trader</th>
+                              <th scope="col" className="hidden py-1 font-normal @lg:table-cell">Bill</th>
+                              <th scope="col" className="py-1 text-right font-normal">Quantity</th>
+                              <th scope="col" className="py-1 text-right font-normal">Amount</th>
+                              <th scope="col" className="hidden py-1 text-right font-normal @lg:table-cell">CESS</th>
+                              <th scope="col" className="py-1 text-right font-normal">Collected</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {r.lines.map((l) => (
+                              <tr key={l.id}>
+                                <th scope="row" className="py-1 text-left font-normal">
+                                  {l.trader}
+                                  <span className="block text-caption text-muted-foreground">{l.product}</span>
+                                </th>
+                                <td className="hidden py-1 text-caption text-muted-foreground @lg:table-cell">{l.billNo || "—"}</td>
+                                <td className="py-1 text-right tabular-nums">{formatNumber(l.qty)} {l.unit}</td>
+                                <td className="py-1 text-right tabular-nums">{formatInr(l.amount)}</td>
+                                <td className="hidden py-1 text-right tabular-nums @lg:table-cell">{formatInr(l.cess)}</td>
+                                <td className="py-1 text-right tabular-nums">{formatInr(l.cessPaid)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+          {data.rows.length > 0 && (
+            <tfoot>
+              <tr className="h-12 text-foreground">
+                <th scope="row" className="text-left font-normal">Total ({t.vehicles} {t.vehicles === 1 ? "vehicle" : "vehicles"})</th>
+                <td className="hidden @xl:table-cell" />
+                <td className="hidden @lg:table-cell" />
+                <td className="hidden @2xl:table-cell" />
+                <td className="text-right tabular-nums">{formatInr(t.sold)}</td>
+                <td className="hidden text-right tabular-nums @xl:table-cell">{formatInr(t.cess)}</td>
+                <td className="text-right text-[17px] tabular-nums">{formatInr(t.cessCollected)}</td>
+                <td className="hidden text-right tabular-nums @lg:table-cell">{formatInr(t.cessPending)}</td>
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function Body({ data }: { data: AdminReportData }) {
+  if (data.kind === "master") return <MasterBody data={data} />;
   if (data.kind === "operations") {
     const tin = data.days.reduce((a, d) => a + d.in, 0);
     const tout = data.days.reduce((a, d) => a + d.out, 0);
@@ -366,7 +503,7 @@ function Body({ data }: { data: AdminReportData }) {
 export function AdminReportPage() {
   const { user } = useAuth();
   const now = useNow(60_000);
-  const [tab, setTab] = useState<AdminReportKind>("operations");
+  const [tab, setTab] = useState<AdminReportKind>("master");
   const [preset, setPreset] = useState<RangePreset>("7d");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -398,7 +535,7 @@ export function AdminReportPage() {
       <div data-print-hide>
         <PageHeader
           title="Report"
-          description="Operations, money, balances and user activity across all roles."
+          description="The master report shows every vehicle, its goods, what was sold and the CESS collected. More reports follow."
           actions={
             <>
               <Button variant="outline" onClick={() => window.print()} disabled={query.status !== "ready"}>
@@ -447,7 +584,7 @@ export function AdminReportPage() {
         <div className="grid grid-cols-1 gap-4 px-(--card-spacing) sm:grid-cols-2 xl:grid-cols-4">
           <SelectField id="ar-range" label="Date range" icon={<CalendarIcon aria-hidden="true" />} value={preset} onChange={(v) => setPreset(v as RangePreset)} options={presetOptions} disabled={tab === "balances"} hint={tab === "balances" ? "Balances are as of now." : undefined} />
           <SelectField id="ar-role" label="Role" value={role} onChange={(v) => setRole(v as RoleId | "")} options={[{ value: "", label: "All roles" }, ...roles.map((r) => ({ value: r.id, label: r.label }))]} disabled={tab !== "users"} />
-          <SelectField id="ar-user" label="User" value={who} onChange={setWho} options={[{ value: "", label: "All users" }, ...activityUsers().map((u) => ({ value: u, label: u }))]} disabled={tab === "balances" || tab === "operations"} />
+          <SelectField id="ar-user" label="User" value={who} onChange={setWho} options={[{ value: "", label: "All users" }, ...activityUsers().map((u) => ({ value: u, label: u }))]} disabled={tab === "balances" || tab === "operations" || tab === "master"} />
           {preset === "custom" && (
             <>
               <TextField id="ar-from" label="From" type="date" value={from || toDayInput(now - 6 * 86_400_000)} onChange={setFrom} />

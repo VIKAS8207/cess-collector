@@ -1,6 +1,7 @@
 import {
   BoxesIcon,
   DatabaseIcon,
+  HandshakeIcon,
   HistoryIcon,
   UsersRoundIcon,
   FileBarChartIcon,
@@ -68,8 +69,23 @@ export const navByRole: Record<RoleId, NavGroup[]> = {
     },
     { label: "Insights", items: [{ label: "Report", href: "/report", icon: FileBarChartIcon }] },
   ],
+  supplier: [
+    { label: "Overview", items: [dashboard] },
+    { label: "Supplier", items: [{ label: "Supplier", href: "/supplier", icon: HandshakeIcon }] },
+  ],
   admin: [
     { label: "Overview", items: [dashboard] },
+    {
+      label: "Roles",
+      items: [
+        { label: "Supplier", href: "/supplier", icon: HandshakeIcon },
+        { label: "Commission agent", href: "/roles/commission-agent", icon: SplitIcon },
+        { label: "Weight bridge operator", href: "/roles/weighbridge-operator", icon: ScaleIcon },
+        { label: "Market place", href: "/roles/marketplace", icon: SearchCheckIcon },
+        { label: "Driver", href: "/roles/driver", icon: TruckIcon },
+        { label: "Trader", href: "/roles/trader", icon: BoxesIcon },
+      ],
+    },
     {
       label: "Admin",
       items: [

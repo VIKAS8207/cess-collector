@@ -18,6 +18,25 @@ export type AppUser = {
   password: string;
 };
 
+/**
+ * One supplier registered from the Supplier page: profile plus the vehicles
+ * they run. Kept apart from AppUser because a supplier record is business
+ * data, not a login.
+ */
+export type SupplierRecord = {
+  id: string;
+  name: string;
+  state: string;
+  city: string;
+  commodities: string[];
+  vehicleCount: number;
+  plates: string[];
+  createdAt: number;
+  createdBy: string;
+  /** The login created in step 2 of the form, when there is one. */
+  userId?: string;
+};
+
 export type MasterKind = "items" | "vehicleTypes" | "purposes" | "paymentModes";
 
 export type MasterEntry = {

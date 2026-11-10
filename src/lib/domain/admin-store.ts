@@ -64,6 +64,7 @@ function ad(): AdminData {
     mk("Imran Khan", "imran.khan@company.com", "commission_agent", "active", 40, 2 * DAY),
     mk("Tara Shah", "tara.shah@company.com", "trader", "active", 50, 1 * hour),
     mk("Neha Rao", "neha.rao@company.com", "trader", "active", 20, 4 * DAY),
+    mk("Sunil Patil", "sunil.patil@company.com", "supplier", "active", 45, 4 * hour),
   ];
   config.cess.since = today - 45 * DAY;
   config.cess.lastChangedAt = today - 9 * DAY;
@@ -454,7 +455,7 @@ export function activityEvents(now: number): ActivityEvent[] {
 
   for (const m of s.movements) {
     if (m.entryAt) {
-      push({ id: `${m.id}-in`, at: m.entryAt, role: "gate_operator", user: m.operator, type: "gate_entry", summary: `Entry ${m.plate || m.fastag} · ${m.driverName}`, ref: m.plate || m.fastag, payload: [["Entry no", m.entryNo], ["Plate", m.plate], ["FASTag", m.fastag], ["Driver", m.driverName], ["Vehicle type", m.vehicleType], ["Purpose", m.purpose], ["Gate", m.gate]] });
+      push({ id: `${m.id}-in`, at: m.entryAt, role: "gate_operator", user: m.operator, type: "gate_entry", summary: `Entry ${m.plate || m.fastag} · ${m.driverName}`, ref: m.plate || m.fastag, payload: [["Entry no", m.entryNo], ["Plate", m.plate], ["FASTag", m.fastag], ["Driver", m.driverName], ["Supplier", m.supplier ?? ""], ["Commodity", m.commodity ?? ""], ["Vehicle type", m.vehicleType], ["Purpose", m.purpose], ["Gate", m.gate]] });
     }
     if (m.exitAt) {
       push({ id: `${m.id}-out`, at: m.exitAt, role: "gate_operator", user: m.exitOperator ?? m.operator, type: "gate_exit", summary: `Exit ${m.plate || m.fastag} approved`, ref: m.plate || m.fastag, payload: [["Entry no", m.entryNo], ["Plate", m.plate], ["Driver", m.driverName], ["Gate", m.gate]] });

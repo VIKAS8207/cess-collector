@@ -71,6 +71,9 @@ export type Movement = {
   driverPhone: string;
   vehicleType: VehicleType;
   transporter: string;
+  /** Supplier and commodity, filled from the registered vehicle when the plate is known. */
+  supplier?: string;
+  commodity?: string;
   purpose: Purpose;
   reference: string;
   remarks: string;
@@ -128,6 +131,8 @@ export type EntryInput = {
   driverPhone: string;
   vehicleType: VehicleType;
   transporter: string;
+  supplier?: string;
+  commodity?: string;
   purpose: Purpose;
   reference: string;
   remarks: string;

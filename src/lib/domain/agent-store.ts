@@ -230,6 +230,8 @@ export function createReceipt(input: ReceiptInput, by: string):
     plate: movement.plate,
     driverName: movement.driverName,
     transporter: movement.transporter,
+    supplier: movement.supplier,
+    commodity: movement.commodity,
     entryAt: movement.entryAt,
     sellerId: input.sellerId,
     lines,

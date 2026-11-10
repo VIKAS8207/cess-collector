@@ -40,6 +40,8 @@ const vehicleColumns = (now: number): Column<Movement>[] => [
   { key: "driver", header: "Driver", hideBelow: "md", cell: (m) => m.driverName },
   { key: "type", header: "Type", hideBelow: "2xl", cell: (m) => m.vehicleType },
   { key: "transporter", header: "Transporter", hideBelow: "5xl", cell: (m) => m.transporter || "—" },
+  { key: "supplier", header: "Supplier", hideBelow: "xl", cell: (m) => m.supplier || "—" },
+  { key: "commodity", header: "Commodity", hideBelow: "2xl", cell: (m) => m.commodity || "—" },
   { key: "entry", header: "Entry", cell: (m) => <span className="text-caption tabular-nums text-muted-foreground">{m.entryAt ? formatStamp(m.entryAt) : "—"}</span> },
   { key: "exit", header: "Exit", hideBelow: "xl", cell: (m) => <span className="text-caption tabular-nums text-muted-foreground">{m.exitAt ? formatStamp(m.exitAt) : "—"}</span> },
   { key: "status", header: "Status", cell: (m) => <StatusPill movement={m} /> },

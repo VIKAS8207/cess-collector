@@ -64,6 +64,8 @@ export function EntryDetailsDialog({
                 <Fact label="Issuing bank" value={m.bank} />
                 <Fact label="Driver" value={m.driverName} />
                 <Fact label="Transporter" value={m.transporter} />
+                <Fact label="Supplier" value={m.supplier} />
+                <Fact label="Commodity" value={m.commodity} />
                 <Fact label="Purpose" value={m.purpose} />
                 <Fact label="Operator" value={m.operator} />
                 <Fact label="Gate" value={m.gate} />

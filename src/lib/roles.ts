@@ -7,6 +7,7 @@ export const roles = [
   { id: "marketplace", label: "Market place" },
   { id: "driver", label: "Driver" },
   { id: "trader", label: "Trader" },
+  { id: "supplier", label: "Supplier" },
   { id: "admin", label: "Admin" },
 ] as const;
 

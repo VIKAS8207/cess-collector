@@ -28,6 +28,8 @@ const columns: Column<Movement>[] = [
   { key: "no", header: "Entry no", cell: (m) => <span className="tabular-nums text-muted-foreground">{m.entryNo}</span> },
   { key: "plate", header: "Plate", primary: true, cell: (m) => m.plate || "No plate" },
   { key: "driver", header: "Driver", cell: (m) => m.driverName },
+  { key: "supplier", header: "Supplier", hideBelow: "xl", cell: (m) => m.supplier || "—" },
+  { key: "commodity", header: "Commodity", hideBelow: "xl", cell: (m) => m.commodity || "—" },
   { key: "purpose", header: "Purpose", cell: (m) => m.purpose },
   { key: "status", header: "Status", cell: (m) => <StatusPill movement={m} /> },
 ];

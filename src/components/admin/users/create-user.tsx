@@ -22,25 +22,56 @@ function generatePassword(length = 10) {
 export function CreateUserDrawer({
   open,
   admin,
+  lockedRole,
   onClose,
   onCreated,
 }: {
   open: boolean;
   admin: string;
+  /** When set, the form creates this role only and hides the role picker. */
+  lockedRole?: RoleId;
   onClose: () => void;
   onCreated: (u: AppUser) => void;
 }) {
   return (
-    <SideDrawer open={open} onClose={onClose} title="Create credentials" description="Set the login for any role. Share the email and password with the person.">
-      {open && <Body admin={admin} onDone={onCreated} />}
+    <SideDrawer
+      open={open}
+      onClose={onClose}
+      title="Create credentials"
+      description={
+        lockedRole
+          ? `Create a ${roleLabel(lockedRole)} login. Share the email and password with the person.`
+          : "Set the login for any role. Share the email and password with the person."
+      }
+    >
+      {open && <CreateUserForm admin={admin} lockedRole={lockedRole} onDone={onCreated} />}
     </SideDrawer>
   );
 }
 
-function Body({ admin, onDone }: { admin: string; onDone: (u: AppUser) => void }) {
-  const [name, setName] = useState("");
+/**
+ * The create form itself, without any chrome. Used inside the side drawer on
+ * Users & Roles, and rendered inline above the table on the role pages.
+ */
+export function CreateUserForm({
+  admin,
+  lockedRole,
+  initialName = "",
+  onDone,
+  onCancel,
+}: {
+  admin: string;
+  /** When set, the form creates this role only and hides the role picker. */
+  lockedRole?: RoleId;
+  /** Pre-fills the name, e.g. from the profile entered in step 1. */
+  initialName?: string;
+  onDone: (u: AppUser) => void;
+  /** Renders a Cancel button next to submit; used for the inline variant. */
+  onCancel?: () => void;
+}) {
+  const [name, setName] = useState(initialName);
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<RoleId>("gate_operator");
+  const [role, setRole] = useState<RoleId>(lockedRole ?? "gate_operator");
   const [password, setPassword] = useState(() => generatePassword());
   const [attempted, setAttempted] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -127,15 +158,22 @@ function Body({ admin, onDone }: { admin: string; onDone: (u: AppUser) => void }
         void submit();
       }}
     >
-      <section className="flex flex-col gap-4">
-        <h3 className="text-heading-md text-foreground">Role</h3>
-        <SelectField id="cu-role" label="Role" required value={role} onChange={(v) => setRole(v as RoleId)} options={roles.map((r) => ({ value: r.id, label: r.label }))} disabled={saving} />
-        {role === "driver" && (
-          <p className="rounded-field bg-muted px-3 py-3 text-sm text-muted-foreground">
-            A driver sees the trips entered under their own name, so spell the name exactly as the gate operator types it at entry.
-          </p>
-        )}
-      </section>
+      {!lockedRole && (
+        <section className="flex flex-col gap-4">
+          <h3 className="text-heading-md text-foreground">Role</h3>
+          <SelectField id="cu-role" label="Role" required value={role} onChange={(v) => setRole(v as RoleId)} options={roles.map((r) => ({ value: r.id, label: r.label }))} disabled={saving} />
+          {role === "driver" && (
+            <p className="rounded-field bg-muted px-3 py-3 text-sm text-muted-foreground">
+              A driver sees the trips entered under their own name, so spell the name exactly as the gate operator types it at entry.
+            </p>
+          )}
+        </section>
+      )}
+      {lockedRole && role === "driver" && (
+        <p className="rounded-field bg-muted px-3 py-3 text-sm text-muted-foreground">
+          A driver sees the trips entered under their own name, so spell the name exactly as the gate operator types it at entry.
+        </p>
+      )}
 
       <section className="flex flex-col gap-4">
         <h3 className="text-heading-md text-foreground">Identity</h3>
@@ -177,10 +215,17 @@ function Body({ admin, onDone }: { admin: string; onDone: (u: AppUser) => void }
             Generate another
           </Button>
         </div>
-        <Button type="submit" size="lg" className="w-full sm:w-auto sm:self-end" disabled={saving} aria-busy={saving}>
-          {saving && <Spinner />}
-          Create credentials
-        </Button>
+        <div className="flex flex-wrap gap-3 sm:justify-end">
+          {onCancel && (
+            <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
+              Cancel
+            </Button>
+          )}
+          <Button type="submit" size="lg" disabled={saving} aria-busy={saving}>
+            {saving && <Spinner />}
+            Create credentials
+          </Button>
+        </div>
       </section>
     </form>
   );

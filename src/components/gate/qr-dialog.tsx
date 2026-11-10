@@ -49,6 +49,18 @@ export function QrDialog({ id, onClose }: { id: string | null; onClose: () => vo
                   <dt className="text-caption text-muted-foreground">Driver</dt>
                   <dd className="text-foreground">{m.driverName}</dd>
                 </div>
+                {m.supplier && (
+                  <div>
+                    <dt className="text-caption text-muted-foreground">Supplier</dt>
+                    <dd className="text-foreground">{m.supplier}</dd>
+                  </div>
+                )}
+                {m.commodity && (
+                  <div>
+                    <dt className="text-caption text-muted-foreground">Commodity</dt>
+                    <dd className="text-foreground">{m.commodity}</dd>
+                  </div>
+                )}
                 <div>
                   <dt className="text-caption text-muted-foreground">Entry time</dt>
                   <dd className="tabular-nums text-foreground">{m.entryAt ? formatStamp(m.entryAt) : "—"}</dd>
@@ -73,6 +85,8 @@ export function QrDialog({ id, onClose }: { id: string | null; onClose: () => vo
                       { label: "Entry no", value: m.entryNo },
                       { label: "Plate", value: m.plate || "No plate" },
                       { label: "Driver", value: m.driverName },
+                      ...(m.supplier ? [{ label: "Supplier", value: m.supplier }] : []),
+                      ...(m.commodity ? [{ label: "Commodity", value: m.commodity }] : []),
                       { label: "Entry time", value: m.entryAt ? formatStamp(m.entryAt) : "" },
                     ])
                   }

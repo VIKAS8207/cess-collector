@@ -70,7 +70,9 @@ export function filterMovements(f: Filters): Movement[] {
     if (q) {
       const hit =
         (qId && (normalizeId(m.plate).includes(qId) || normalizeId(m.fastag).includes(qId))) ||
-        m.driverName.toLowerCase().includes(qText);
+        m.driverName.toLowerCase().includes(qText) ||
+        (m.supplier ?? "").toLowerCase().includes(qText) ||
+        (m.commodity ?? "").toLowerCase().includes(qText);
       if (!hit) return false;
     }
     return true;

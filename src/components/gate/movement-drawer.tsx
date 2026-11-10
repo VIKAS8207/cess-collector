@@ -144,6 +144,8 @@ export function MovementDrawer({
                     <Row label="Vehicle class" value={m.vehicleClass} />
                     <Row label="Driver" value={m.driverName} />
                     <Row label="Transporter" value={m.transporter} />
+                    <Row label="Supplier" value={m.supplier} />
+                    <Row label="Commodity" value={m.commodity} />
                     <Row label="Purpose" value={m.purpose} />
                     <Row label="Reference" value={m.reference} />
                     <Row label="Remarks" value={m.remarks} />

@@ -48,6 +48,9 @@ export type Receipt = {
   plate: string;
   driverName: string;
   transporter: string;
+  /** From the gate entry, when the vehicle was registered. */
+  supplier?: string;
+  commodity?: string;
   entryAt: number | null;
   sellerId: string;
   lines: ReceiptLine[];

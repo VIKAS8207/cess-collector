@@ -75,9 +75,9 @@ const dur = (m: Movement, now: number) =>
 
 function movementRows(rows: Movement[], now: number): (string | number)[][] {
   return [
-    ["Entry no", "Plate", "FASTag", "Driver", "Type", "Purpose", "Transporter", "Entry", "Exit", "Status", "Dwell (min)", "Operator", "Gate"],
+    ["Entry no", "Plate", "FASTag", "Driver", "Type", "Purpose", "Transporter", "Supplier", "Commodity", "Entry", "Exit", "Status", "Dwell (min)", "Operator", "Gate"],
     ...rows.map((m) => [
-      m.entryNo, m.plate, m.fastag, m.driverName, m.vehicleType, m.purpose, m.transporter,
+      m.entryNo, m.plate, m.fastag, m.driverName, m.vehicleType, m.purpose, m.transporter, m.supplier ?? "", m.commodity ?? "",
       m.entryAt ? formatStamp(m.entryAt) : "", m.exitAt ? formatStamp(m.exitAt) : "", m.status, dur(m, now), m.operator, m.gate,
     ]),
   ];
@@ -179,6 +179,8 @@ function MovementTable({ rows, now, totals }: { rows: Movement[]; now: number; t
           <tr className="h-10 border-b border-border text-left text-caption text-muted-foreground">
             <th scope="col" className="font-normal">Plate</th>
             <th scope="col" className="hidden font-normal @md:table-cell">Driver</th>
+            <th scope="col" className="hidden font-normal @2xl:table-cell">Supplier</th>
+            <th scope="col" className="hidden font-normal @2xl:table-cell">Commodity</th>
             <th scope="col" className="hidden font-normal @2xl:table-cell">Type</th>
             <th scope="col" className="hidden font-normal @2xl:table-cell">Purpose</th>
             <th scope="col" className="font-normal">Entry</th>
@@ -192,6 +194,8 @@ function MovementTable({ rows, now, totals }: { rows: Movement[]; now: number; t
             <tr key={m.id} className="h-12 border-b border-border">
               <th scope="row" className="pr-3 text-left font-normal">{m.plate || "No plate"}</th>
               <td className="hidden max-w-36 truncate pr-3 @md:table-cell">{m.driverName}</td>
+              <td className="hidden max-w-36 truncate pr-3 @2xl:table-cell">{m.supplier || "—"}</td>
+              <td className="hidden max-w-36 truncate pr-3 @2xl:table-cell">{m.commodity || "—"}</td>
               <td className="hidden pr-3 @2xl:table-cell">{m.vehicleType}</td>
               <td className="hidden pr-3 @2xl:table-cell">{m.purpose}</td>
               <td className="pr-3 text-caption tabular-nums text-muted-foreground">{m.entryAt ? formatStamp(m.entryAt) : "—"}</td>

@@ -54,6 +54,8 @@ export function ReceiptDrawer({ id, onClose }: { id: string | null; onClose: () 
             <dl className="flex flex-col gap-3">
               <Row label="Driver" value={r.driverName} />
               <Row label="Transporter" value={r.transporter} />
+              <Row label="Supplier" value={r.supplier} />
+              <Row label="Commodity" value={r.commodity} />
               <Row label="Gate entry" value={r.entryAt ? formatStamp(r.entryAt) : ""} />
               <Row label="Received" value={`${formatStamp(r.receivedAt)} by ${r.agent}`} />
               <Row label="Seller" value={getParty(r.sellerId)?.name} />

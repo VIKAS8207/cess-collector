@@ -95,6 +95,8 @@ function TruckHeader({ movement }: { movement: Movement }) {
         <Fact label="FASTag" value={<span className="tabular-nums">{movement.fastag || "No FASTag"}</span>} />
         <Fact label="Vehicle type" value={movement.vehicleType} />
         <Fact label="Transporter" value={movement.transporter} />
+        <Fact label="Supplier" value={movement.supplier} />
+        <Fact label="Commodity" value={movement.commodity} />
         <Fact label="Purpose" value={movement.purpose} />
         <Fact label="Entry time" value={<span className="tabular-nums">{formatStamp(movement.entryAt!)}</span>} />
       </dl>
@@ -124,7 +126,8 @@ function WeighPanel({
   const summary = weighSummary(movement);
   const [source, setSource] = useState<Source>("bridge");
   const [manual, setManual] = useState("");
-  const [product, setProduct] = useState(summary.product);
+  // A supplier with one commodity makes the product obvious, so start with it.
+  const [product, setProduct] = useState(summary.product || (movement.commodity && !movement.commodity.includes(",") ? movement.commodity : ""));
   const [photo, setPhoto] = useState<string | null>(null);
   const [camOpen, setCamOpen] = useState(false);
   const [attempted, setAttempted] = useState(false);
@@ -278,7 +281,7 @@ function WeighPanel({
             value={product}
             onChange={setProduct}
             error={attempted ? productError : undefined}
-            hint="Choose from the list or type it."
+            hint={movement.commodity ? `Registered commodity: ${movement.commodity}.` : "Choose from the list or type it."}
             autoComplete="off"
             disabled={saving}
           />

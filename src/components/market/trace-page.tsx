@@ -128,6 +128,8 @@ function TruckTrail({ result, onBack }: { result: Exclude<ScanLookup, { kind: "n
         <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Fact label="Driver" value={m.driverName} />
           <Fact label="Transporter" value={m.transporter} />
+          <Fact label="Supplier" value={m.supplier} />
+          <Fact label="Commodity" value={m.commodity} />
           <Fact label="Vehicle type" value={m.vehicleType} />
           <Fact label="Purpose" value={m.purpose} />
           <Fact label="Entry time" value={<span className="tabular-nums">{m.entryAt ? formatStamp(m.entryAt) : "—"}</span>} />

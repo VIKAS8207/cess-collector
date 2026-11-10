@@ -332,6 +332,8 @@ export function ExitPage() {
                   <Fact label="FASTag" value={<span className="tabular-nums">{m.fastag || "No FASTag"}</span>} />
                   <Fact label="Vehicle type" value={m.vehicleType} />
                   <Fact label="Transporter" value={m.transporter} />
+                  <Fact label="Supplier" value={m.supplier} />
+                  <Fact label="Commodity" value={m.commodity} />
                   <Fact label="Purpose" value={m.purpose} />
                   <Fact label="Entered by" value={`${m.operator} · ${m.gate}`} />
                   <Fact label="Entry time" value={<span className="tabular-nums">{formatStamp(m.entryAt!)}</span>} />

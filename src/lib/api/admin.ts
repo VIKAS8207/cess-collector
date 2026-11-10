@@ -1,12 +1,13 @@
 import { delay } from "./delay";
 import { startOfDay } from "@/lib/domain/seed";
 import type { Range } from "@/lib/domain/range";
-import { DAY, HOUR, type Movement } from "@/lib/domain/types";
-import { allMovements, attentionItems, exceptionItems, openMovements, dwellOf } from "@/lib/domain/store";
+import { DAY, HOUR, weighSummary, type Movement } from "@/lib/domain/types";
+import { allMovements, getMovement, attentionItems, exceptionItems, openMovements, dwellOf } from "@/lib/domain/store";
 import { config, overdueDays, overstayMs, type BusinessInfo } from "@/lib/domain/settings";
 import {
   allParties,
   allPayments,
+  allAllocations,
   allReceipts,
   allReturns,
   allSales,
@@ -56,8 +57,10 @@ import {
   updateMaster,
   userRecordCount,
 } from "@/lib/domain/admin-store";
-import type { ActivityEvent, ActivityType, AppUser, MasterKind } from "@/lib/domain/admin-types";
-import type { CommissionType, Unit } from "@/lib/domain/agent-types";
+import type { ActivityEvent, ActivityType, AppUser, MasterKind, SupplierRecord } from "@/lib/domain/admin-types";
+import { addSupplier, allSuppliers } from "@/lib/domain/supplier-store";
+import { addProfile, allProfiles, type ProfileRoleId } from "@/lib/domain/role-profiles";
+import type { Allocation, CommissionType, Unit } from "@/lib/domain/agent-types";
 import { roleLabel, roles, type RoleId } from "@/lib/roles";
 
 type Opts = { forceError?: boolean };
@@ -278,6 +281,58 @@ export async function submitCreateUser(input: { name: string; email: string; rol
   await delay();
   return createUser(input, admin);
 }
+
+// ---------- suppliers ----------
+
+export type SupplierProfile = Omit<SupplierRecord, "id" | "createdAt" | "createdBy" | "vehicleCount">;
+
+export function getSuppliers(f: { q?: string } = {}, opts?: Opts): Promise<SupplierRecord[]> {
+  return sim(opts, () => {
+    const q = f.q?.trim().toLowerCase() ?? "";
+    return allSuppliers().filter(
+      (s) =>
+        !q ||
+        s.name.toLowerCase().includes(q) ||
+        s.state.toLowerCase().includes(q) ||
+        s.city.toLowerCase().includes(q) ||
+        s.commodities.some((c) => c.toLowerCase().includes(q)) ||
+        s.plates.some((p) => p.toLowerCase().includes(q))
+    );
+  });
+}
+
+export async function submitCreateSupplier(profile: SupplierProfile, admin: string) {
+  await delay();
+  return addSupplier(profile, admin);
+}
+// ---------- role profiles ----------
+
+export type ProfileRow = { id: string; name: string; values: Record<string, string>; createdAt: number; userId: string | null };
+
+/**
+ * Registered people of one role. Logins created before profiles existed have
+ * no profile, so they are listed too, with empty details.
+ */
+export function getRoleProfiles(role: ProfileRoleId, f: { q?: string } = {}, opts?: Opts): Promise<ProfileRow[]> {
+  return sim(opts, () => {
+    const q = f.q?.trim().toLowerCase() ?? "";
+    const profiles = allProfiles().filter((p) => p.role === role);
+    const linked = new Set(profiles.map((p) => p.userId).filter(Boolean));
+    const rows: ProfileRow[] = profiles.map((p) => ({ id: p.id, name: p.name, values: p.values, createdAt: p.createdAt, userId: p.userId ?? null }));
+    for (const u of allUsers()) {
+      if (u.role === role && !linked.has(u.id)) rows.push({ id: u.id, name: u.name, values: { email: u.email }, createdAt: u.createdAt, userId: u.id });
+    }
+    return rows
+      .filter((r) => !q || r.name.toLowerCase().includes(q) || Object.values(r.values).some((v) => v.toLowerCase().includes(q)))
+      .sort((a, b) => b.createdAt - a.createdAt);
+  });
+}
+
+export async function submitCreateRoleProfile(role: ProfileRoleId, values: Record<string, string>, userId: string, admin: string) {
+  await delay();
+  return addProfile(role, values, admin, userId);
+}
+
 export async function submitUserRole(id: string, role: RoleId, admin: string) {
   await delay(300, 500);
   return setUserRole(id, role, admin);
@@ -436,10 +491,52 @@ export function activityUsers(): string[] {
 
 // ---------- reports ----------
 
-export type AdminReportKind = "operations" | "money" | "balances" | "users";
+export type AdminReportKind = "master" | "operations" | "money" | "balances" | "users";
+
+/** One trader's share of a vehicle's goods, with the CESS on it. */
+export type MasterLine = {
+  id: string;
+  no: string;
+  trader: string;
+  product: string;
+  unit: Unit;
+  qty: number;
+  rate: number;
+  amount: number;
+  cess: number;
+  cessPaid: number;
+  billNo: string;
+  at: number;
+};
+
+/** One vehicle visit: what came, who it came from, what was sold, and the CESS on it. */
+export type MasterRow = {
+  movementId: string;
+  entryNo: string;
+  plate: string;
+  driver: string;
+  supplier: string;
+  commodity: string;
+  entryAt: number | null;
+  status: string;
+  netKg: number | null;
+  /** Products sold from this truck, e.g. "Mango 40 bags, Onion 10 bags". */
+  goods: string;
+  sold: number;
+  cess: number;
+  cessCollected: number;
+  cessPending: number;
+  lines: MasterLine[];
+};
+
+export type MasterReport = {
+  totals: { vehicles: number; allocated: number; sold: number; cess: number; cessCollected: number; cessPending: number };
+  rows: MasterRow[];
+};
 export type AdminReportFilters = { range: Range; role?: RoleId; user?: string };
 
 export type AdminReportData =
+  | ({ kind: "master" } & MasterReport)
   | {
       kind: "operations";
       days: { label: string; in: number; out: number; inside: number }[];
@@ -471,6 +568,60 @@ export function getAdminReport(kind: AdminReportKind, f: AdminReportFilters, opt
     const now = Date.now();
     const range = f.range;
     const userOk = (name: string) => !f.user || name === f.user;
+
+    if (kind === "master") {
+      const byMovement = new Map<string, Allocation[]>();
+      for (const a of allAllocations()) {
+        if (!byMovement.has(a.movementId)) byMovement.set(a.movementId, []);
+        byMovement.get(a.movementId)!.push(a);
+      }
+      // A vehicle belongs to the range by its entry, or by any allocation made in the range.
+      const movements = allMovements().filter(
+        (m) => (m.entryAt !== null && inRange(m.entryAt, range)) || (byMovement.get(m.id) ?? []).some((a) => inRange(a.at, range))
+      );
+      const rows: MasterRow[] = movements.map((m) => {
+        const al = (byMovement.get(m.id) ?? []).slice().sort((a, b) => a.at - b.at);
+        const sold = al.reduce((s, a) => s + a.amount, 0);
+        const cess = al.reduce((s, a) => s + a.cess, 0);
+        const cessCollected = al.reduce((s, a) => s + a.cessPaid, 0);
+        const byProduct = new Map<string, number>();
+        for (const a of al) byProduct.set(`${a.product}|${a.unit}`, (byProduct.get(`${a.product}|${a.unit}`) ?? 0) + a.qty);
+        return {
+          movementId: m.id,
+          entryNo: m.entryNo,
+          plate: m.plate,
+          driver: m.driverName,
+          supplier: m.supplier || al[0]?.supplier || "",
+          commodity: m.commodity || weighSummary(m).product || "",
+          entryAt: m.entryAt,
+          status: m.status,
+          netKg: weighSummary(m).net,
+          goods: [...byProduct].map(([k, q]) => `${k.split("|")[0]} ${Math.round(q * 100) / 100} ${k.split("|")[1]}`).join(", "),
+          sold,
+          cess,
+          cessCollected,
+          cessPending: Math.max(0, cess - cessCollected),
+          lines: al.map((a) => ({
+            id: a.id, no: a.no, trader: a.partyName, product: a.product, unit: a.unit, qty: a.qty, rate: a.rate,
+            amount: a.amount, cess: a.cess, cessPaid: a.cessPaid, billNo: a.billNo, at: a.at,
+          })),
+        };
+      });
+      rows.sort((a, b) => (b.entryAt ?? 0) - (a.entryAt ?? 0));
+      const sum = (pick: (r: MasterRow) => number) => rows.reduce((s, r) => s + pick(r), 0);
+      return {
+        kind,
+        totals: {
+          vehicles: rows.length,
+          allocated: rows.filter((r) => r.lines.length > 0).length,
+          sold: sum((r) => r.sold),
+          cess: sum((r) => r.cess),
+          cessCollected: sum((r) => r.cessCollected),
+          cessPending: sum((r) => r.cessPending),
+        },
+        rows,
+      };
+    }
 
     if (kind === "operations") {
       const nDays = Math.max(1, Math.ceil((range.to - range.from) / DAY));

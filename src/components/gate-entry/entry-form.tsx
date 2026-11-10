@@ -14,6 +14,7 @@ import { CameraDialog, type CameraKind } from "@/components/gate-entry/camera-di
 import { checkEntry, normalizeId, useStoreVersion } from "@/lib/domain/store";
 import { purposes, vehicleTypes, type EntryInput, type Movement, type Purpose } from "@/lib/domain/types";
 import { activeGate } from "@/lib/domain/settings";
+import { registeredVehicle } from "@/lib/domain/role-profiles";
 import { formatStamp } from "@/lib/format";
 import { useNow } from "@/hooks/use-now";
 
@@ -23,7 +24,12 @@ type Form = {
   fastag: string;
   noFastag: boolean;
   driverName: string;
+  driverPhone: string;
   transporter: string;
+  supplier: string;
+  commodity: string;
+  /** True while driver, transporter, supplier and commodity came from the registered vehicle. */
+  autoFilled: boolean;
   purpose: Purpose | "";
   /** Fetched details the operator has changed by hand. Cleared when the plate or FASTag changes. */
   edits: Partial<VehicleDetails>;
@@ -35,10 +41,36 @@ const INITIAL: Form = {
   fastag: "",
   noFastag: false,
   driverName: "",
+  driverPhone: "",
   transporter: "",
+  supplier: "",
+  commodity: "",
+  autoFilled: false,
   purpose: "",
   edits: {},
 };
+
+/**
+ * Looks the plate up in the registered drivers and suppliers and fills the trip
+ * fields from what is found. A plate that is not registered clears only what an
+ * earlier lookup filled, never what the operator typed.
+ */
+function applyRegistered(p: Form): Form {
+  const reg = registeredVehicle(p.plate);
+  if (!reg) {
+    return p.autoFilled ? { ...p, driverName: "", driverPhone: "", transporter: "", supplier: "", commodity: "", autoFilled: false } : p;
+  }
+  const pick = (found: string, current: string) => found || (p.autoFilled ? "" : current);
+  return {
+    ...p,
+    driverName: pick(reg.driverName, p.driverName),
+    driverPhone: pick(reg.driverPhone, p.driverPhone),
+    transporter: pick(reg.transporter, p.transporter),
+    supplier: pick(reg.supplier, p.supplier),
+    commodity: pick(reg.commodity, p.commodity),
+    autoFilled: true,
+  };
+}
 
 const PLATE_RE = /^[A-Z]{2}\d{1,2}[A-Z]{1,3}\d{4}$/;
 const purposeOptions = [{ value: "", label: "Select purpose" }, ...purposes.map((p) => ({ value: p, label: p }))];
@@ -49,7 +81,7 @@ const bankList = ["HDFC Bank", "ICICI Bank", "SBI", "Axis Bank", "IDFC FIRST Ban
 const optionsWith = (list: string[], current: string) =>
   (current && !list.includes(current) ? [...list, current] : list).map((v) => ({ value: v, label: v }));
 
-const NAV_ORDER = ["ge-plate", "ge-fastag", "ge-nofastag", "ge-vtype", "ge-class", "ge-bank", "ge-driver", "ge-transporter", "ge-purpose"];
+const NAV_ORDER = ["ge-plate", "ge-fastag", "ge-nofastag", "ge-vtype", "ge-class", "ge-bank", "ge-driver", "ge-transporter", "ge-supplier", "ge-commodity", "ge-purpose"];
 
 const stamp = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "medium" });
 
@@ -92,7 +124,10 @@ export function EntryForm({
   const [captureNote, setCaptureNote] = useState<string | null>(null);
   const [blocked, setBlocked] = useState<{ kind: "duplicate" | "conflict"; movement: Movement } | null>(null);
   const set = (patch: Partial<Form>) =>
-    setF((p) => ({ ...p, ...("plate" in patch || "fastag" in patch || "noFastag" in patch ? { edits: {} } : {}), ...patch }));
+    setF((p) => {
+      const next = { ...p, ...("plate" in patch || "fastag" in patch || "noFastag" in patch ? { edits: {} } : {}), ...patch };
+      return "plate" in patch ? applyRegistered(next) : next;
+    });
 
   const focusFirst = () => requestAnimationFrame(() => document.getElementById("ge-plate")?.focus());
 
@@ -121,9 +156,14 @@ export function EntryForm({
     setCam(null);
     setShots((s) => ({ ...s, [kind]: image }));
     const text = value.toUpperCase();
-    setF((p) => ({ ...p, ...(kind === "plate" ? { plate: text, plateOverride: false } : { fastag: text, noFastag: false }), edits: {} }));
-    setCaptureNote(`${kind === "plate" ? "Plate" : "FASTag"} ${text} was read. Vehicle details were fetched. Enter the driver name.`);
-    setTimeout(() => document.getElementById("ge-driver")?.focus(), 80);
+    const next = applyRegistered({ ...f, ...(kind === "plate" ? { plate: text, plateOverride: false } : { fastag: text, noFastag: false }), edits: {} });
+    setF(next);
+    setCaptureNote(
+      next.autoFilled
+        ? `${kind === "plate" ? "Plate" : "FASTag"} ${text} was read. Registered vehicle found, so driver and supplier were filled. Check them.`
+        : `${kind === "plate" ? "Plate" : "FASTag"} ${text} was read. Vehicle details were fetched. Enter the driver name.`
+    );
+    setTimeout(() => document.getElementById(next.autoFilled ? "ge-purpose" : "ge-driver")?.focus(), 80);
   };
 
   /** Test helper: fills the plate and FASTag as if both cameras had read a truck. */
@@ -133,9 +173,14 @@ export function EntryForm({
     const r = await simulateArrival();
     setSimulating(false);
     setShots({});
-    setF((p) => ({ ...p, plate: r.plate, plateOverride: false, fastag: r.fastag, noFastag: false, edits: {} }));
-    setCaptureNote(`Simulated: plate ${r.plate} and FASTag ${r.fastag} were read. Vehicle details were fetched. Enter the driver name.`);
-    setTimeout(() => document.getElementById("ge-driver")?.focus(), 80);
+    const next = applyRegistered({ ...f, plate: r.plate, plateOverride: false, fastag: r.fastag, noFastag: false, edits: {} });
+    setF(next);
+    setCaptureNote(
+      next.autoFilled
+        ? `Simulated: plate ${r.plate} and FASTag ${r.fastag} were read. Registered vehicle found, so driver and supplier were filled.`
+        : `Simulated: plate ${r.plate} and FASTag ${r.fastag} were read. Vehicle details were fetched. Enter the driver name.`
+    );
+    setTimeout(() => document.getElementById(next.autoFilled ? "ge-purpose" : "ge-driver")?.focus(), 80);
   };
 
   const submit = async () => {
@@ -160,9 +205,11 @@ export function EntryForm({
       vehicleClass: details?.vehicleClass ?? "",
       bank: f.noFastag ? "" : (details?.bank ?? ""),
       driverName: f.driverName.trim(),
-      driverPhone: "",
+      driverPhone: f.driverPhone,
       vehicleType: details?.vehicleType ?? "Truck",
       transporter: f.transporter.trim(),
+      supplier: f.supplier.trim(),
+      commodity: f.commodity.trim(),
       purpose: f.purpose as Purpose,
       reference: "",
       remarks: "",
@@ -246,7 +293,7 @@ export function EntryForm({
 
         <Section
           title="Gate cameras"
-          hint="Capture the number plate and the FASTag. The vehicle details fill in. The driver name is always typed."
+          hint="Capture the number plate and the FASTag. Vehicle details fill in. A registered vehicle also fills the driver, supplier and commodity."
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <CameraTile
@@ -380,12 +427,16 @@ export function EntryForm({
         </Section>
 
         <Section title="Trip details">
+          <FormBanner
+            tone="info"
+            message={f.autoFilled ? "Registered vehicle found. Driver, supplier and commodity were filled from the records. Change anything that is different today." : null}
+          />
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField
               id="ge-driver"
               label="Driver name"
               required
-              hint="Required. Ask the driver."
+              hint={f.autoFilled && f.driverName ? "From the registered vehicle. Change it if a different driver came." : "Required. Ask the driver."}
               value={f.driverName}
               onChange={(v) => set({ driverName: v })}
               error={shown.driver}
@@ -397,6 +448,22 @@ export function EntryForm({
               label="Transporter / company"
               value={f.transporter}
               onChange={(v) => set({ transporter: v })}
+              autoComplete="off"
+              disabled={submitting}
+            />
+            <TextField
+              id="ge-supplier"
+              label="Supplier"
+              value={f.supplier}
+              onChange={(v) => set({ supplier: v })}
+              autoComplete="off"
+              disabled={submitting}
+            />
+            <TextField
+              id="ge-commodity"
+              label="Commodity"
+              value={f.commodity}
+              onChange={(v) => set({ commodity: v })}
               autoComplete="off"
               disabled={submitting}
             />
