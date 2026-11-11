@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BlockEmpty, BlockError } from "@/components/dashboard/block-states";
 import { PageHeader } from "@/components/gate/page-header";
 import { useToast } from "@/components/gate/toast";
-import { CreateRoleDrawer } from "@/components/admin/users/create-any";
+import { CreateAnyRole, CreateRoleDrawer } from "@/components/admin/users/create-any";
 import { UserDrawer } from "@/components/admin/users/user-drawer";
 import { useAuth } from "@/lib/auth-store";
 import { getUsers } from "@/lib/api/admin";
@@ -23,6 +23,7 @@ import { roleLabel, roles, type RoleId } from "@/lib/roles";
 import { formatDate, formatStamp } from "@/lib/format";
 import { useLiveQuery } from "@/hooks/use-live-query";
 import { useHotkey } from "@/hooks/use-hotkey";
+import { useMedia } from "@/hooks/use-media";
 
 const userColumns: Column<AppUser>[] = [
   { key: "name", header: "Name", primary: true, cell: (u) => u.name },
@@ -46,6 +47,8 @@ export function UsersPage() {
   const [q, setQ] = useState("");
   const [openId, setOpenId] = useState<string | null>(params.get("user"));
   const [creating, setCreating] = useState(false);
+  // Large screens use a side drawer. Tablets and phones show the form above the table.
+  const large = useMedia("(min-width: 1024px)");
 
   const list = useLiveQuery(`users:${role}:${status}:${q}`, (a) =>
     getUsers({ role: role || undefined, status: status || undefined, q }, { forceError: a === 0 && forcedErrors().has("users") })
@@ -61,12 +64,37 @@ export function UsersPage() {
         title="Users & Roles"
         description="Create a user for any role in one place, set roles, and control who can log in."
         actions={
-          <Button onClick={() => setCreating(true)}>
-            <PlusIcon aria-hidden="true" />
-            Create user
-          </Button>
+          creating && !large ? (
+            <Button variant="outline" onClick={() => setCreating(false)}>
+              Close form
+            </Button>
+          ) : (
+            <Button onClick={() => setCreating(true)}>
+              <PlusIcon aria-hidden="true" />
+              Create user
+            </Button>
+          )
         }
       />
+
+      {creating && !large && (
+        <Card className="gap-6" aria-label="Create user">
+          <div className="flex flex-col gap-1 px-(--card-spacing)">
+            <h2 className="text-heading-md text-foreground">Create user</h2>
+            <p className="text-sm text-muted-foreground">Choose the role, fill in the details, then set the login.</p>
+          </div>
+          <div className="px-(--card-spacing)">
+            <CreateAnyRole
+              admin={admin}
+              onClose={() => setCreating(false)}
+              onCreated={(message) => {
+                setCreating(false);
+                toast.push(message);
+              }}
+            />
+          </div>
+        </Card>
+      )}
 
       <Card className="gap-4">
         <div className="grid gap-4 px-(--card-spacing) sm:grid-cols-2 xl:grid-cols-4">
@@ -131,7 +159,7 @@ export function UsersPage() {
 
       <UserDrawer id={openId} admin={admin} onClose={() => setOpenId(null)} />
       <CreateRoleDrawer
-        open={creating}
+        open={creating && large}
         admin={admin}
         onClose={() => setCreating(false)}
         onCreated={(message) => {

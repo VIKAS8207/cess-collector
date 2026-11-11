@@ -32,13 +32,13 @@ export function CreateRoleDrawer({
   );
 }
 
-function CreateAnyRole({ admin, onClose, onCreated }: { admin: string; onClose: () => void; onCreated: (message: string) => void }) {
+export function CreateAnyRole({ admin, onClose, onCreated }: { admin: string; onClose: () => void; onCreated: (message: string) => void }) {
   const [role, setRole] = useState<RoleId | "">("");
   const label = role ? roleLabel(role) : "";
   const done = (_id: string, name: string, message?: string) => onCreated(message ?? `${name} created as ${label}.`);
 
   return (
-    <>
+    <div className="flex flex-col gap-8">
       <section className="flex flex-col gap-4">
         <h3 className="text-heading-md text-foreground">Role</h3>
         <SelectField
@@ -59,6 +59,6 @@ function CreateAnyRole({ admin, onClose, onCreated }: { admin: string; onClose: 
       {(role === "gate_operator" || role === "admin") && (
         <CreateUserForm key={role} admin={admin} lockedRole={role} onCancel={onClose} onDone={(u) => onCreated(`${u.name} created as ${label}.`)} />
       )}
-    </>
+    </div>
   );
 }
