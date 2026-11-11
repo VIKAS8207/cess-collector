@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BlockEmpty, BlockError } from "@/components/dashboard/block-states";
 import { PageHeader } from "@/components/gate/page-header";
 import { useToast } from "@/components/gate/toast";
-import { CreateUserDrawer } from "@/components/admin/users/create-user";
+import { CreateRoleDrawer } from "@/components/admin/users/create-any";
 import { UserDrawer } from "@/components/admin/users/user-drawer";
 import { useAuth } from "@/lib/auth-store";
 import { getUsers } from "@/lib/api/admin";
@@ -46,7 +46,6 @@ export function UsersPage() {
   const [q, setQ] = useState("");
   const [openId, setOpenId] = useState<string | null>(params.get("user"));
   const [creating, setCreating] = useState(false);
-  const [highlight, setHighlight] = useState<string | null>(null);
 
   const list = useLiveQuery(`users:${role}:${status}:${q}`, (a) =>
     getUsers({ role: role || undefined, status: status || undefined, q }, { forceError: a === 0 && forcedErrors().has("users") })
@@ -60,11 +59,11 @@ export function UsersPage() {
     <div className="flex flex-col gap-8 lg:gap-10">
       <PageHeader
         title="Users & Roles"
-        description="Create users, set roles, and control who can log in."
+        description="Create a user for any role in one place, set roles, and control who can log in."
         actions={
           <Button onClick={() => setCreating(true)}>
             <PlusIcon aria-hidden="true" />
-            Create credentials
+            Create user
           </Button>
         }
       />
@@ -103,7 +102,7 @@ export function UsersPage() {
             <BlockEmpty
               icon={UsersIcon}
               text="No users match."
-              actionLabel={filtered ? "Clear filters" : "Create credentials"}
+              actionLabel={filtered ? "Clear filters" : "Create user"}
               onAction={() => {
                 if (filtered) {
                   setRole("");
@@ -121,7 +120,6 @@ export function UsersPage() {
               columns={userColumns}
               rows={rows.map((r) => r.user)}
               rowKey={(u) => u.id}
-              highlightId={highlight}
               pageSize={10}
               minWidth={420}
               actionLabel={(u) => `Actions for ${u.name}`}
@@ -132,15 +130,13 @@ export function UsersPage() {
       </Card>
 
       <UserDrawer id={openId} admin={admin} onClose={() => setOpenId(null)} />
-      <CreateUserDrawer
+      <CreateRoleDrawer
         open={creating}
         admin={admin}
         onClose={() => setCreating(false)}
-        onCreated={(u) => {
+        onCreated={(message) => {
           setCreating(false);
-          setHighlight(u.id);
-          setTimeout(() => setHighlight((h) => (h === u.id ? null : h)), 3000);
-          toast.push(`${u.name} created as ${roleLabel(u.role)}.`);
+          toast.push(message);
         }}
       />
     </div>

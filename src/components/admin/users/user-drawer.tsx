@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CopyIcon, KeyRoundIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { UserDetails } from "@/components/admin/users/user-details";
 import { Pill } from "@/components/ui/pill";
 import { SelectField } from "@/components/ui/select-field";
 import { Spinner } from "@/components/ui/spinner";
@@ -133,6 +134,8 @@ function Body({ userId, admin, onDeleted }: { userId: string; admin: string; onD
           <Row label="Records" value={`${records}`} />
         </dl>
       </section>
+
+      <UserDetails user={user} admin={admin} />
 
       <section className="flex flex-col gap-4" aria-labelledby="ud-role">
         <h3 id="ud-role" className="text-heading-md text-foreground">Role</h3>

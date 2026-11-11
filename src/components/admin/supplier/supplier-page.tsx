@@ -101,7 +101,7 @@ function SupplierEdit({ supplier, ctx }: { supplier: SupplierRecord; ctx: EditSl
 }
 
 /** Two steps: supplier profile, then credentials. Saving happens on step 2. */
-function SupplierCreate({
+export function SupplierCreate({
   admin,
   onDone,
   onCancel,

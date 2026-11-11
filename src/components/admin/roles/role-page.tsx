@@ -88,7 +88,7 @@ function ProfileEdit({ roleId, row, ctx }: { roleId: ProfileRoleId; row: Profile
 }
 
 /** Step 1 stays mounted while step 2 is open, so Back keeps every entry. */
-function ProfileCreate({ roleId, label, ctx }: { roleId: ProfileRoleId; label: string; ctx: CreateSlotCtx }) {
+export function ProfileCreate({ roleId, label, ctx }: { roleId: ProfileRoleId; label: string; ctx: CreateSlotCtx }) {
   const [values, setValues] = useState<Record<string, string> | null>(null);
   const summary = values
     ? profileFields(roleId)
